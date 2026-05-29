@@ -7,10 +7,6 @@
 
 function [TOOLBOX_input,CELL_output,MODULE_output,WEATHER_output,THERMAL_output,ELECTRIC_output,CONVERSION_output,DEGRADATION_output,LCOE_output,LOSS_ANALYSIS_output] = TB_script(input)
 
-%---- Check license
-ok = license(nargin);                   %check licence
-if ~ok || nargin == 0, return; end      %if licence not ok, don't continue
-
 % Add functions to MATLAB path
 here = pwd;
 addpath(genpath(here));
@@ -127,41 +123,5 @@ if TOOLBOX_input.save.enable
     file = fullfile(TOOLBOX_input.save.folder, 'Results.mat');
     save(file, 'TOOLBOX_input',"CELL_output","MODULE_output","WEATHER_output","THERMAL_output","ELECTRIC_output","DEGRADATION_output","CONVERSION_output","LCOE_output","LOSS_ANALYSIS_output");
 end
-
-%% ==========================================================================
-    function ok = license(n)
-        %Compare current date to end of license date. If not yet expired ok = 1,
-        %else ok = 0. Display message 2 weeks before expiration, after expiration
-        %and when GenPro runs without input.
-        
-        licencee = 'PVMD-Internal';
-
-        end_date = '15-Apr-2026';
-        
-        remain = datenum(end_date) - now;      %days of licence remaining
-        
-        if remain > 14                         %if licence valid for > 14 days
-            ok = 1;                            %ok, no need to display message
-            if n==0                            %if Toolbox is run without input give general message
-                disp('PVMD Toolbox, by Malte R. Vogt, Delft University of Technology')
-                disp(['Copy of ',licencee])
-                disp(['Licence valid until: ',end_date])
-            end
-        elseif remain >= 0                     %if license valid for 0 to 14 days
-            ok = 1;                            %ok, but display reminder
-            disp('PVMD Toolbox, by Malte R. Vogt, Delft University of Technology')
-            disp(['Copy of ',licencee])
-            disp(['Reminder: Your license will expire on ',end_date])
-            disp('To extend your license please download the new version from Gitlab or contact Malte R. Vogt (m.r.vogt@tudelft.nl)');
-        else
-            ok = 0;                            %licence expired, display message
-            disp('PVMD Toolbox, by Malte R. Vogt, Delft University of Technology')
-            disp(['Copy of ',licencee])
-            disp(['Your license expired on ',end_date])
-            disp('To renew your license please download the new version from Gitlab or contact Malte R. Vogt (m.r.vogt@tudelft.nl)');
-        end
-        
-    end
-%--------------------------------------------------------------------------
 
 end
