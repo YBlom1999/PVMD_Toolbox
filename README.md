@@ -1,8 +1,9 @@
 # PVMD_Toolbox
 This repository contains the software of the PVMD Toolbox, a comprehensive modelling framework for novel PV systems. The framework consists of 9 modelling steps that each simulate a different aspect of the PV system, as shown in the figure below.
 
-<img width="378" height="378" alt="OverviewGuide" src="https://github.com/user-attachments/assets/59652792-4334-4e91-84eb-39e1843a6536" />
-<img width="574" height="378" alt="Screenshot 2026-06-17 161259" src="https://github.com/user-attachments/assets/8edc9e9d-bf1a-41d1-a8fe-bfd70c8a8b5d" />
+
+<img src="https://github.com/user-attachments/assets/59652792-4334-4e91-84eb-39e1843a6536" width="45%" />
+<img src="https://github.com/user-attachments/assets/8edc9e9d-bf1a-41d1-a8fe-bfd70c8a8b5d" width="45%" />
 
 The software can be used either via MATLAB or via the Graphical User Interface (GUI) that can be installed.
 For the usage of the GUI, [this manual](Manuals/UsersManual_PVMD_Toolbox.pdf) the manual can be used for the needed instructions and information.
