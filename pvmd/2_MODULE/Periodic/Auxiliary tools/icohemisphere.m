@@ -1,27 +1,41 @@
 function [V,F,A,C,zenith,azimuth] = icohemisphere(rl,cut_off_half)
-%Divide 'unit'-hemisphere into triangles and get the coordinates of triangle
-%corners and centers. Triangles have a similar (but not identical size) and
-%a total area of exactly 2pi. Useful for discretization of skydome. 
+% icohemisphere divide 'unit'-hemisphere into triangles and get the coordinates 
+% of triangle corners and centers. Triangles have a similar (but not identical size) 
+% and a total area of exactly 2pi. Useful for discretization of skydome.
+% Strategy: based on icosphere algorithm, starting with icosahedron (20 
+% triangles) each triangle is devided into 4 smaller ones, recusively.
+% The icosphere obtained after 1 recursion (80 triangles) has mirror
+% symmetry and is cut into hemisphere (40 triangles). This hemisphere is
+% then refined recursively, multiplying the number of triangle by 4 at each
+% recursion.
+%
+% This function makes the hemisphere for the sky
+%
+% Parameters
+% ----------
+% rl : double
+%   recursion level
+% cut_off_half : boolean
+%   the indicator whether the bottom half should be removed
+%
+% Returns
+% -------
+% V : double
+%   The vertices of the sky elements
+% F : double
+%   The faces of the sky elements
+% A: double
+%   The area of the sky elements
+% C: double
+%   The xyz coordinate of the sky elements
+% zenith: double
+%   The zenith of the sky elements
+% azimuth: double
+%   The azimuth coordinate of the sky elements
+%
+% Developed by Rudi Santbergen
 
-%By Rudi Santbergen, PVMD, TU Delft (2017), changed by Youri Blom
 
-%INPUT
-%rl             recursion level 1,2,3,... (nr. of triangles n = 10*4^rl)
-%cut_off_half   indicates whether the bottom half should be removed.
-%OUTPUT
-%V              xyz-coord. of triangle vertex points [v x 3]
-%F              triangle facets (see help on 'patch' function) [n x 3]
-%A              triangle area [n x 1]
-%C              xyz-coord. of triangle centers [n x 3]
-%zenith         zenith angle of triangle centers [n x 1]
-%azimuth        azimuth angle of triangle centers [n x 1]
-
-%Strategy: based on icosphere algorithm, starting with icosahedron (20 
-%triangles) each triangle is devided into 4 smaller ones, recusively.
-%The icosphere obtained after 1 recursion (80 triangles) has mirror
-%symmetry and is cut into hemisphere (40 triangles). This hemisphere is
-%then refined recursively, multiplying the number of triangle by 4 at each
-%recursion.
 
 %---create icosahedron vertices and faces (20 triangles)---
 t = (1+sqrt(5))/2;

@@ -1,4 +1,4 @@
-function [P_cell,P_metal,P_ref,P_diffA,I_abs1,I_abs2] = OpticalLossesTandem(Opt_Losses_input,TOOLBOX_input,MODULE_output,CELL_output,CONSTANTS)
+function [P_cell,P_metal,P_ref,P_diffA,I_abs1,I_abs2] = OpticalLossesTandem(Opt_Losses_input,TOOLBOX_input,CELL_output,MODULE_output)
 %OpticalLossesTandem Calculates the optical losses of the system 
 % with tandem modules.
 %
@@ -53,10 +53,10 @@ I_mpp = Opt_Losses_input.I_mpp;
 T_cell = Opt_Losses_input.T_cell;
 
 % constants
-h = CONSTANTS.h;
-q = CONSTANTS.q;
-c = CONSTANTS.c;
-k = CONSTANTS.k;
+h = TOOLBOX_input.constants.h;
+q = TOOLBOX_input.constants.q;
+c = TOOLBOX_input.constants.c;
+k = TOOLBOX_input.constants.k;
 
 %Properties of the module
 N_cells = MODULE_output.N;
@@ -76,8 +76,8 @@ Rsh1 = Parameters1(:,3);
 n1 = Parameters1(:,4);
 I01 = Parameters1(:,5);
 if TOOLBOX_input.electric.Terminals == 2
-    V_cell1 = Iph1.*Rsh1+I01.*Rsh1-I_mpp'.*(Rs1+Rsh1)-n1.*Vth'.*lambertw(Rsh1.*I01./(n1.*Vth').*exp(Rsh1./(n1.*Vth').*(Iph1+I01-I_mpp')));
-    V_cell2 = V_mpp_cell'-V_cell1;
+    V_cell1 = Iph1.*Rsh1+I01.*Rsh1-I_mpp.*(Rs1+Rsh1)-n1.*Vth.*lambertw_pvmd(Rsh1.*I01./(n1.*Vth).*exp(Rsh1./(n1.*Vth).*(Iph1+I01-I_mpp)));
+    V_cell2 = V_mpp_cell-V_cell1;
     V_cell1(isnan(V_cell1)) = 0;
     V_cell2(isnan(V_cell2)) = 0;
 elseif TOOLBOX_input.electric.Terminals == 3
@@ -90,14 +90,14 @@ end
 
 %The wavelengths that are present at GENPRO are loaded
 wav_GENPRO = CELL_output.CELL_FRONT.wav;
-N = find(wav > wav_GENPRO(end)*1e-6,1)-1;  %N is the last wavelength that is in GENPRO
+N = find(wav > wav_GENPRO(end),1)-1;  %N is the last wavelength that is in GENPRO
 N_1 = find(wav > h*c/(q*E_g1),1)-1; %N1 is the wavelength corresponding to the bandgap of perovskite
 N_2 = find(wav > h*c/(q*E_g2),1)-1; %N1 is the wavelength corresponding to the bandgap of silicon
 
-A1 = interp1(wav_GENPRO,A1,wav(1:N)*1e6);
-A2 = interp1(wav_GENPRO,A2,wav(1:N)*1e6);
-R = interp1(wav_GENPRO,R,wav(1:N)*1e6);
-A_diff = interp1(wav_GENPRO,A_diff,wav(1:N)*1e6);
+A1 = interp1(wav_GENPRO,A1,wav(1:N));
+A2 = interp1(wav_GENPRO,A2,wav(1:N));
+R = interp1(wav_GENPRO,R,wav(1:N));
+A_diff = interp1(wav_GENPRO,A_diff,wav(1:N));
 A1(isnan(A1)) = 0;
 A2(isnan(A2)) = 0;
 R(isnan(R)) = 0;
@@ -110,15 +110,20 @@ P_cell = (P_in-P_fund)*(1-N_cells*A_cell/A_mod);
 P_metal = (P_in-P_fund)*N_cells*A_cell/A_mod*Sf;
 
 %% Reflecion/Transmission and Absorption
-photon_emission_actual1 = 2*Angle_emit*c./(wav.^4)*1./(exp((ones(length(wav),length(V_opt1))*h*c./wav-q*V_cell1')./(k*T_cell))-1);
-photon_emission_actual2 = 2*Angle_emit*c./(wav.^4)*1./(exp((ones(length(wav),length(V_opt2))*h*c./wav-q*V_cell2')./(k*T_cell))-1);
-P_ref_f1 = A_eff*(photon_spec(1:N,:)-photon_emission_actual1(1:N,:)).*R.*V_opt1*q;
-P_ref_f2 = A_eff*(photon_spec(1:N,:)-photon_emission_actual2(1:N,:)).*R.*V_opt2*q;
-P_ref = trapz(wav(1:N_1,:),P_ref_f1(1:N_1,:))+trapz(wav(N_1:N_2,:),P_ref_f2(N_1:N_2,:));
+photon_emission_actual1 = 2*Angle_emit*c./(wav.^4)*1./(exp((ones(length(V_opt1),length(wav))*h*c./wav-q*V_cell1)./(k*T_cell))-1);
+photon_emission_actual2 = 2*Angle_emit*c./(wav.^4)*1./(exp((ones(length(V_opt2),length(wav))*h*c./wav-q*V_cell2)./(k*T_cell))-1);
+P_ref_f1 = A_eff*(photon_spec(:,1:N)-photon_emission_actual1(:,1:N)).*R.*V_opt1*q;
+P_ref_f2 = A_eff*(photon_spec(:,1:N)-photon_emission_actual2(:,1:N)).*R.*V_opt2*q;
+P_ref = trapz(wav(1:N_1),P_ref_f1(:,1:N_1)')'+trapz(wav(N_1:N_2),P_ref_f2(:,N_1:N_2)')';
 
-P_diffA_f1 = A_eff*(photon_spec(1:N,:)-photon_emission_actual1(1:N,:)).*A_diff.*V_opt1*q;
-P_diffA_f2 = A_eff*(photon_spec(1:N,:)-photon_emission_actual2(1:N,:)).*A_diff.*V_opt2*q;
-P_diffA = trapz(wav(1:N_1,:),P_diffA_f1(1:N_1,:))+trapz(wav(N_1:N_2,:),P_diffA_f2(N_1:N_2,:));
+P_diffA_f1 = A_eff*(photon_spec(:,1:N)-photon_emission_actual1(:,1:N)).*A_diff.*V_opt1*q;
+P_diffA_f2 = A_eff*(photon_spec(:,1:N)-photon_emission_actual2(:,1:N)).*A_diff.*V_opt2*q;
+P_diffA = trapz(wav(1:N_1),P_diffA_f1(:,1:N_1)')'+trapz(wav(N_1:N_2),P_diffA_f2(:,N_1:N_2)')';
 
-I_abs1_f = A_eff/N_cells*(photon_spec(1:N,:)-photon_emission_actual1(1:N,:)).*A1.*q;
-I_abs2_f = A_eff/N_cells*(photon_spec(1:N,:)-photon_em
+I_abs1_f = A_eff/N_cells*(photon_spec(:,1:N)-photon_emission_actual1(:,1:N)).*A1.*q;
+I_abs2_f = A_eff/N_cells*(photon_spec(:,1:N)-photon_emission_actual2(:,1:N)).*A2*q;
+
+I_abs1 = trapz(wav(1:N),I_abs1_f(:,1:N)')';
+I_abs2 = trapz(wav(1:N),I_abs2_f(:,1:N)')';
+
+end

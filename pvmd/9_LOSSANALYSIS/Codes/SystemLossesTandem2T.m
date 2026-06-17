@@ -1,4 +1,4 @@
-function [P_con,P_mismatch,P_cable,P_inv] = SystemLossesTandem2T(Sys_Losses_input,TOOLBOX_input,ELECTRIC_output,MODULE_output)
+function [P_con,P_mismatch,P_cable,P_inv] = SystemLossesTandem2T(Sys_Losses_input,TOOLBOX_input,MODULE_output,CONVERSION_output)
 %SystemLossesTandem Calculates the system losses of the PV system
 % with tandem modules.
 %
@@ -11,10 +11,12 @@ function [P_con,P_mismatch,P_cable,P_inv] = SystemLossesTandem2T(Sys_Losses_inpu
 %   The needed inputs for the system losses calculation
 % TOOLBOX_input : struct
 %   Simulation parameters
-% ELECTRIC_output : struct
-%   Simulation results of the ELECTRIC module
 % MODULE_output : struct
 %   Simulation results of the MODULE module
+% ELECTRIC_output : struct
+%   Simulation results of the ELECTRIC module
+% CONVERSION_output : struct
+%   Simulation results of the CONVERSION module 
 %
 % Returns
 % -------
@@ -62,8 +64,8 @@ for i = 1:N_cells
     Rsh2 = Parameters2(i,:,3)';
     n2 = Parameters2(i,:,4)';
     I02 = Parameters2(i,:,5)';
-    [I_mpp1, V_mpp1] =  MPPfinder(Iph1,Rs1,Rsh1,n1,I01,T_cell);
-    [I_mpp2, V_mpp2] =  MPPfinder(Iph2,Rs2,Rsh2,n2,I02,T_cell);
+    [I_mpp1, V_mpp1] =  MPPfinder(TOOLBOX_input,Iph1,Rs1,Rsh1,n1,I01,T_cell);
+    [I_mpp2, V_mpp2] =  MPPfinder(TOOLBOX_input,Iph2,Rs2,Rsh2,n2,I02,T_cell);
     V_mpp1(isnan(I_mpp1)) = 0;
     I_mpp1(isnan(I_mpp1)) = 0;
     V_mpp2(isnan(I_mpp2)) = 0;
@@ -73,7 +75,7 @@ for i = 1:N_cells
 
 end
 P_mismatch = sum(P_mpp_cell,2)-I_mpp.*V_mod;
-if (isfield(TOOLBOX_input, 'runACConversionPart')==1 && TOOLBOX_input.runACConversionPart == 1)
+if isstruct(CONVERSION_output)
     Pdc = Sys_Losses_input.Pdc;
     Pac = Sys_Losses_input.Pac;
     panels = TOOLBOX_input.Conversion.Parallel_Modules*TOOLBOX_input.Conversion.Series_Modules;
@@ -82,4 +84,10 @@ if (isfield(TOOLBOX_input, 'runACConversionPart')==1 && TOOLBOX_input.runACConve
     else
         P_cable = panels*Pdc*TOOLBOX_input.Conversion.CableLoss/100;
     end
-    P_
+    P_inv = Pdc*panels - P_cable-max(Pac,0);
+else
+    P_cable = 0;
+    P_inv = 0;
+end
+
+end

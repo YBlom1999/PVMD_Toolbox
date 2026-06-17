@@ -1,5 +1,4 @@
-function cell_temp = individual_cell_FD(ambient_temp,wind_speed,cell_abs,...
-    TOOLBOX_input,MODULE_output)
+function T_cell = individual_cell_FD(T_amb,WS,cell_abs,TOOLBOX_input,MODULE_output,Submod_i)
 %INDIVIDUAL_CELL_FD Calculate cell temperature using fluid dynamic model
 % 
 % The cell temperature is calculated using the fluid-dynamic model as
@@ -10,9 +9,9 @@ function cell_temp = individual_cell_FD(ambient_temp,wind_speed,cell_abs,...
 %
 % Parameters
 % ----------
-% ambient_temp : double
+% T_amb : double
 %   Ambient temperature at each time instant (celsius)
-% wind_speed : double
+% WS : double
 %   Wind speed at each time instant (m/s)
 % cell_abs : double
 %   Absorbed irradiance by each cell at each time instant
@@ -20,10 +19,12 @@ function cell_temp = individual_cell_FD(ambient_temp,wind_speed,cell_abs,...
 %   Simulation parameters
 % MODULE_output : struct
 %   Results from the MODULE module
+% Submod_i : double
+%   The index of which submodule is simulated
 %
 % Returns
 % -------
-% cell_temp : double
+% T_cell : double
 %   Cell temperature at each time instant (celsius)
 %
 % Performed by unknown (A. Jamodkar? E. Garcia?). Improved by A. Nour.
@@ -31,10 +32,11 @@ function cell_temp = individual_cell_FD(ambient_temp,wind_speed,cell_abs,...
 
 %% Load data
 
-[pvmd_folder,~,~] = get_folder_structure;
-file_path = fullfile(pvmd_folder,'4_THERMAL','data','thermal_params.mat');
-load(file_path, 'anenometer_height','glass_conduct',...
-    'glass_emissivity','boltzmann_ct')
+boltzmann_ct = TOOLBOX_input.constants.sigma_SB;
+anenometer_height =  TOOLBOX_input.thermal.anenometer_height;
+glass_conduct = TOOLBOX_input.thermal.glass_conduct;
+glass_emissivity = TOOLBOX_input.thermal.glass_emissivity;
+T_tau = TOOLBOX_input.thermal.T_tau;
 
 %mounting height of the module convert [cm]->[m]
 ModMountHeight=0.01*TOOLBOX_input.Scene.module_mounting.ModMountHeight;
@@ -48,21 +50,42 @@ temp_coeff=TOOLBOX_input.thermal.temp_coeff;
 % Thickness of the glass [m]
 glass_thickness=TOOLBOX_input.thermal.glass_thickness;
 
-% number_cells      number of cells in a module
-number_cells=MODULE_output.N;
+if TOOLBOX_input.runPeriodic
+    % number_cells      number of cells in a module
+    number_cells=MODULE_output.N(Submod_i);
+    
+    % cell_area         area of the PV cell (cm2), convert from m2
+    cell_area=MODULE_output.A(Submod_i)*10000;
+    
+    % glass_area        area of the glass (cm2) per cell
+    glass_area=MODULE_output.Amod*10000/number_cells;
+    
+    % tilt              tilt of the module (degrees)
+    tilt=MODULE_output.ModTilt;
+else
+    % number_cells      number of cells in a module
+    number_cells=MODULE_output.Panels(Submod_i).Ncells;
+    
+    % cell_area         area of the PV cell (cm2), convert from m2
+    cell_area=MODULE_output.Panels(Submod_i).Acell*10000;
+    
+    % glass_area        area of the glass (cm2) per cell
+    glass_area=MODULE_output.Panels(Submod_i).Amod*10000/number_cells;
+    
+    % tilt              tilt of the module (degrees)
+    tilt=MODULE_output.ModTilt(Submod_i);
+end
 
-% cell_area         area of the PV cell (cm2), convert from m2
-cell_area=MODULE_output.A*10000;
-
-% glass_area        area of the glass (cm2) per cell
-glass_area=MODULE_output.Amod*10000/number_cells;
-
-% tilt              tilt of the module (degrees)
-tilt=MODULE_output.ModTilt;
+if isfield(TOOLBOX_input.thermal,'HeatGen')
+    DetailedHeatCalculation = 1;
+    HeatGen = TOOLBOX_input.thermal.HeatGen/MODULE_output.A(Submod_i);
+else
+    DetailedHeatCalculation = 0;
+end
 
 %% Precalculate certain parameters to reduce calculations inside the loop
-wind_speed_module = wind_speed*(ModMountHeight/anenometer_height)^0.2;
-number_hours = size(ambient_temp,1);
+wind_speed_module = WS*(ModMountHeight/anenometer_height)^0.2;
+number_hours = size(T_amb,1);
 
 % Absorbed irradiance for the front and rear glass
 front_glass_abs = 0.014*cell_abs;
@@ -80,10 +103,10 @@ radiative_ct = glass_emissivity*boltzmann_ct*glass_area;
 
 %% Iterative loop for each hour for each cell in the module
 % Initialize parameters to store the results
-cell_temp = zeros(size(cell_abs));
+T_cell = zeros(size(cell_abs));
 
 for h = 1:number_hours
-    ambient_temp_h = ambient_temp(h)+273.15;
+    ambient_temp_h = T_amb(h)+273.15;
     ground_temp_h = ambient_temp_h;
     sky_temp_h = 0.68*(0.0552*ambient_temp_h^1.5) + 0.32*ambient_temp_h;
     
@@ -99,7 +122,11 @@ for h = 1:number_hours
             cell_temp_h = cell_temp_h_guess;
             
             % Heat Flux 
-            Heat_flux = cell_abs(h,cell)*(1 - cell_eff*(1 + temp_coeff*(cell_temp_h - 300)));
+            if DetailedHeatCalculation
+                Heat_flux = cell_abs(h,cell) + HeatGen(h,cell);
+            else
+                Heat_flux = cell_abs(h,cell)*(1 - cell_eff*(1 + temp_coeff*(cell_temp_h - 300)));
+            end
             
             % Free convection heat transfer
             h_conv_free_front = 1.31*abs(front_glass_temp - ambient_temp_h)^(1/3);
@@ -121,7 +148,12 @@ for h = 1:number_hours
             rear_glass_temp = (ambient_temp_h*H_conv_rear + sky_temp_h*h_rad_sky_B + ground_temp_h*h_rad_gro_B + cell_temp_h*H_cond + rear_glass_abs(h,cell)*glass_area) / (H_conv_rear + h_rad_sky_B + h_rad_gro_B + H_cond);
             cell_temp_h_guess = (front_glass_temp*H_cond + rear_glass_temp*H_cond + cell_area*Heat_flux) / (2.0*H_cond);
         end
-        cell_temp(h,cell) = cell_temp_h_guess - 273.15;
+        if h > 1
+            T_cell(h,cell) = cell_temp_h_guess+T_tau*(T_cell(h-1,cell)+273.15-cell_temp_h_guess) - 273.15;
+        else
+            T_cell(h,cell) = cell_temp_h_guess - 273.15;
+        end
+        
     end
     
 end

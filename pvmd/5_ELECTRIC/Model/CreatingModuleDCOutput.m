@@ -13,12 +13,12 @@ function [Pmpp, Impp, Vmpp, Isc, Voc]=CreatingModuleDCOutput(V_module, I,time,Mo
 %   The current of the module IV curve
 % time : double
 %   The time for which the DC output must be calculated
-% Mod_type : double
-%   The type of module (Non-Rec/ Rec/ Butterfly)
-% Tracking_type : struct
+% Mod_type : string
+%   The type of module (Series/ Rec/ Butterfly)
+% Tracking_type : string
 %   The type of the maximum power point tracker (Global/ local)
 % minVoltage : double
-%   The lowest value the voltage is allowed to reach
+%   The minimum voltage that is allowed by the inverter
 %
 % Returns
 % -------
@@ -138,7 +138,7 @@ function [Pmpp, Impp, Vmpp, Isc, Voc] = ModuleOutputGlobalTracker(V_module,I,tim
 % time : double
 %   The time for which the DC output must be calculated
 % minVoltage : double
-%   The lowest value the voltage is allowed to reach
+%   The minimum voltage that is allowed by the inverter
 %
 % Returns
 % -------
@@ -178,12 +178,10 @@ if length(Pmpp)>time
 end
 
 for i=1:length(V_module(:,1))
-    [~,un_index] = unique(V_module(i,:));
-    if length(un_index) > 1
-        Isc(i) = interp1(V_module(i,un_index),I(un_index),0,'linear','extrap');
-        if Isc(i)>0
-            Voc(i)=interp1(I,V_module(i,:),0);
-        end
+    Isc_ind = find(V_module(i,:) == 0,1);
+    Isc(i) = I(Isc_ind);
+    if Isc(i)>0
+        Voc(i)=interp1(I,V_module(i,:),0);
     end
 end
 
@@ -262,17 +260,6 @@ for i=2:length(V_module(:,1))
         end
     end
 
-%     clf(fig);
-%     hold on; box on;
-%     plot(V_module(i,:),P)
-%     plot(Vmpp(i),Pmpp(i),'x','MarkerSize',15)
-%     xlabel('Voltage [V]')
-%     ylabel('Power [W]')
-%     xlim([0, 55])
-%     ylim([0, 1.2*max(P)]);
-%     title(append('t = ',num2str(i/6)));
-%     drawnow
-%     pause(0.05)
 end
 
 if length(Pmpp)>time
@@ -281,8 +268,12 @@ if length(Pmpp)>time
 end
 
 for i=1:length(V_module(:,1))
-    Isc_ind = find(V_module(i,:) == 0,1);
-    Isc(i) = I(Isc_ind);
+    [~,un_ind] = unique(V_module(i,:));
+    if length(un_ind) > 1
+        Isc(i) = interp1(V_module(i,un_ind),I(un_ind),0,'linear','extrap');
+    else
+        Isc(i) = 0;
+    end
     if Isc(i)>0
         Voc(i)=interp1(I,V_module(i,:),0);
     end

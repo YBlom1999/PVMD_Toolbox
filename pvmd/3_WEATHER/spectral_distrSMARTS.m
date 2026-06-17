@@ -1,4 +1,4 @@
-function [RSD_i_dir,RSD_f_dir,RSD_i_dif,RSD_f_dif,air_mass,wav_new] = spectral_distrSMARTS(wav)
+function [RSD_i_dir,RSD_f_dir,RSD_i_dif,RSD_f_dif,air_mass,wav_new] = spectral_distrSMARTS(wav,constants)
 %spectral_distrSMARTS Calculate the relative spectral distribution with
 %SMARTS
 %
@@ -33,29 +33,31 @@ function [RSD_i_dir,RSD_f_dir,RSD_i_dif,RSD_f_dif,air_mass,wav_new] = spectral_d
 
 % Load constants and air mass spectra (spectral irradiance for 2002
 % wavelengths, AM1.0, AM1.5, etc)
-load('constants/weather_params.mat', 'h','c')
-load('constants/spectraSMARTS.mat','smartsSpec')
-air_mass = smartsSpec.airMass;
-wavelengths = smartsSpec.lambda/1e3; %Wavelength in um
+h = constants.h;
+c = constants.c;
+
+spectr_power_dens_dir = cell2mat(readcell('spectraSMARTS.xlsx',"Sheet","Direct","Range","B3:AW2004"));
+spectr_power_dens_dif = cell2mat(readcell('spectraSMARTS.xlsx',"Sheet","Diffuse","Range","B3:AW2004"));
+wavelengths = cell2mat(readcell('spectraSMARTS.xlsx',"Sheet","Direct","Range","A3:A2004"))/1e9;
+air_mass = cell2mat(readcell('spectraSMARTS.xlsx',"Sheet","Direct","Range","B2:AW2"))';
+
 initial_wav = wavelengths(1);
 final_wav = wavelengths(end);
-spectr_power_dens_dir = smartsSpec.direct;
-spectr_power_dens_dif = smartsSpec.diffuse;
 
 % Prepare wavelength boundaries, adding the extreme wavelengths (280 and
 % 4000 nm) if needed
 stepsize = mean(wav(2:end)-wav(1:end-1));
 wav_new = wav;
-if wav_new(1)> initial_wav, wav_new = [initial_wav:stepsize:wav_new(1),wav_new(2:end)']'; end
-if wav_new(end)< final_wav, wav_new = [wav_new(1:end-1)',wav_new(end):stepsize:final_wav]'; end
+if wav_new(1)> initial_wav, wav_new = [initial_wav:stepsize:wav_new(1),wav_new(2:end)]; end
+if wav_new(end)< final_wav, wav_new = [wav_new(1:end-1),wav_new(end):stepsize:final_wav]; end
 
 % Interpolate the spectrum at the new wavelength range
 RSD_i_dir = interp1(wavelengths,spectr_power_dens_dir,wav_new);
 RSD_i_dif = interp1(wavelengths,spectr_power_dens_dif,wav_new);
 
 % Spectral photon flux density [photons/m2/s/nm]
-RSD_f_dir = RSD_i_dir.*wav_new*1e-6/(h*c);
-RSD_f_dif = RSD_i_dif.*wav_new*1e-6/(h*c);
+RSD_f_dir = RSD_i_dir.*wav_new'/(h*c);
+RSD_f_dif = RSD_i_dif.*wav_new'/(h*c);
 
 
 % Perform normalization by dividing the spectral distributions over the

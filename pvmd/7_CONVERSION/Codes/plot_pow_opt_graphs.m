@@ -88,4 +88,8 @@ if ~isnan(model_INV)
     legend('Inverter Input Power [V DC]','Inverter Output Power [V AC]')
     title(['Power input and output of ' model_INV])
     xlabel('Time [h]');
-    ylabel('Po
+    ylabel('Power [W]');
+    set(gcf,'Position',[200,200,800,400]);
+    set(gca,'Fontsize',14);
+end
+end

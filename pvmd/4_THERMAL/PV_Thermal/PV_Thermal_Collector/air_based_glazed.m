@@ -1,4 +1,4 @@
-function [pvt_collector_output] = air_based_glazed(MODULE_output, WEATHER_output)
+function [pvt_collector_output] = air_based_glazed(~,MODULE_output, WEATHER_output)
 % Calculates the thermal and PV yield of glazed air-based PVT collector
 % 06-23
 %
@@ -16,7 +16,7 @@ function [pvt_collector_output] = air_based_glazed(MODULE_output, WEATHER_output
 % 
 % Developed by ZUA.
 
-Ia = mean(WEATHER_output.Irr,2)';
+Ia = mean(WEATHER_output.Irr{1},2)';
 Tam = [WEATHER_output.ambient_temperature]';
 Vw = [WEATHER_output.wind_speed]';
 L = MODULE_output.ML;
@@ -109,7 +109,7 @@ Quele = Ia.*eta_E;
 Quth = Ia.*eta_tha;
 
 % Total solar irradiance received by the PVT system in kWh/m^2/year
-total_I_sun = sum(mean(WEATHER_output.Irr,2))./1000; 
+total_I_sun = sum(mean(WEATHER_output.Irr{1},2))./1000; 
 % Average thermal efficiency
 etaSum = sum(eta_tha)./length(I1);
 % Average electrical efficiency
@@ -138,7 +138,7 @@ pvt_collector_output.h=h;
 
 %% Plot
 period=WEATHER_output.Period;
-Irr = mean(WEATHER_output.Irr,2);
+Irr = mean(WEATHER_output.Irr{1},2);
 ambient_temperature = WEATHER_output.ambient_temperature;
 
 time = length(Irr);
@@ -177,13 +177,13 @@ end
 f = figure(101);
 plot(xx, T_fin_h,'DisplayName','T_a')
 hold on
-plot(xx, Ttg,'DisplayName','T_{tg}')
-plot(xx, Tcf,'DisplayName','T_{cf}')
-plot(xx, Tbg,'DisplayName','T_{bg}')
 plot(xx, Tc,'DisplayName','T_{c}')
+plot(xx, Tbg,'DisplayName','T_{bg}')
 plot(xx, Tt,'DisplayName','T_{t}')
-plot(xx, Ti,'DisplayName','T_{i}')
+plot(xx, Tcf,'DisplayName','T_{cf}')
 plot(xx, Two,'DisplayName','T_{f,o}')
+plot(xx, Ttg,'DisplayName','T_{tg}')
+plot(xx, Ti,'DisplayName','T_{i}')
 ylabel('temperature (^oC)');
 yyaxis right
 plot(xx, Ia,'DisplayName','I_{sun}')
@@ -359,3 +359,4 @@ x6 = (hrtmi*(x(5) - x(4)) + hvfmi*(Tf - x(6)) - hva*(x(6) - T_amb))*A_c/(M_ins*C
 
 X  = [x1; x2; x3; x4; x5; x6];
 end
+

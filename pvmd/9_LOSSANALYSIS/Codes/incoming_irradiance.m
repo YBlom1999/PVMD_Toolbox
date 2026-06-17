@@ -1,4 +1,4 @@
-function [Flux_angles,Irradiance_angles] = incoming_irradiance(Incoming_Irr_input,TOOLBOX_input,CELL_output,SpecData,weather_data,CONSTANTS)
+function [Flux_angles,Irradiance_angles] = incoming_irradiance(Incoming_Irr_input,TOOLBOX_input,CELL_output,SpecData,weather_data)
 %incoming_irradiance Calculates the incoming irradiance for different angles.
 %
 % This function calculates the incoming irradiance a certain hour in the
@@ -16,8 +16,6 @@ function [Flux_angles,Irradiance_angles] = incoming_irradiance(Incoming_Irr_inpu
 %   The spectral irradiance for different air masses
 % weather_data : double
 %   Weather data from meteonorm
-% CONSTANTS : struct
-%   Physical constants
 %
 % Returns
 % -------
@@ -25,9 +23,6 @@ function [Flux_angles,Irradiance_angles] = incoming_irradiance(Incoming_Irr_inpu
 %   The flux density for each angle per wavelength [#/(m^2 nm)]
 % Irradiance_angles : double
 %   The irradiance for each angle per wavelength [W/(m^2 nm)]
-% factor : double
-%   The correction factor that is needed to match the incoming irradiance
-%   with the simulated photo-generated current.
 %
 % Developed by Y. Blom
 
@@ -54,17 +49,16 @@ sun_alti = weather_data(index,6);
 AM = SpecData.AM;
 air_mass = 1./sind(sun_alti);
 air_mass = min(air_mass,AM(end));
-RSD_f_dir = SpecData.RSD_f_dir*1e6;
-RSD_f_dif = SpecData.RSD_f_dif*1e6;
-RSD_i_dir = SpecData.RSD_i_dir*1e6;
-RSD_i_dif = SpecData.RSD_i_dif*1e6;
+RSD_f_dir = SpecData.RSD_f_dir;
+RSD_f_dif = SpecData.RSD_f_dif;
+RSD_i_dir = SpecData.RSD_i_dir;
+RSD_i_dif = SpecData.RSD_i_dif;
 spectra_choice = SpecData.spectra_choice;
 
 
 % The perez model is used to calcualte the incoming irradiance
 [skymap,ind_sun,skytype] = perez_model(weather_data(index,5), weather_data(index,6),...
-    weather_data(index,7), weather_data(index,8),...
-    AZA(:,1), AZA(:,2), AZA(:,3),extra_sol_power(index));
+    weather_data(index,7), weather_data(index,8),AZA(:,1), AZA(:,2), AZA(:,3),extra_sol_power(index),TOOLBOX_input.settings);
 
 
 if spectra_choice == 1
@@ -90,8 +84,8 @@ Bi(ind_sun,:) = skymap(ind_sun).*AZA(ind_sun,3)*rsd_i_dir;
 Bf(ind_sun,:) = skymap(ind_sun).*AZA(ind_sun,3)*rsd_f_dir;
 
 % The irradiance and fluxes for each angles are initialised
-Irradiance_angles = zeros(length(angles_GENPRO),length(wav),2);
-Flux_angles = zeros(length(angles_GENPRO),length(wav),2);
+Irradiance_angles = zeros(length(wav),length(angles_GENPRO),2);
+Flux_angles = zeros(length(wav),length(angles_GENPRO),2);
 
 Mod_alti_rear = -Mod_alti;
 Mod_azi_rear = Mod_azi+180;
@@ -120,8 +114,8 @@ for i = 1:160
     if cosAOI > 0
         AOI = acosd(cosAOI);
         [~,angle_index] = min(abs(AOI-angles_GENPRO));
-        Irradiance_angles(angle_index,:,1) = Irradiance_angles(angle_index,:,1)+Bi(i,:).*Sens';
-        Flux_angles(angle_index,:,1) = Flux_angles(angle_index,:,1)+Bf(i,:).*Sens';
+        Irradiance_angles(:,angle_index,1) = Irradiance_angles(:,angle_index,1)+Bi(i,:)'.*Sens;
+        Flux_angles(:,angle_index,1) = Flux_angles(:,angle_index,1)+Bf(i,:)'.*Sens;
     end
     if Bifacial == 1
         Sens = squeeze(mean(SM_r(i,:,end,:)));
@@ -136,8 +130,8 @@ for i = 1:160
             AOI_rear = acosd(cosAOI_rear);
             %input power from direct back side
             [~,angle_index] = min(abs(AOI_rear-angles_GENPRO));
-            Irradiance_angles(angle_index,:,2) = Irradiance_angles(angle_index,:,2)+Bi(i,:).*Sens'*weigth1;
-            Flux_angles(angle_index,:,2) = Flux_angles(angle_index,:,2)+Bf(i,:).*Sens'*weigth1;
+            Irradiance_angles(:,angle_index,2) = Irradiance_angles(:,angle_index,2)+Bi(i,:)'.*Sens*weigth1;
+            Flux_angles(:,angle_index,2) = Flux_angles(:,angle_index,2)+Bf(i,:)'.*Sens*weigth1;
         end
         %Input power from albedo back side
         
@@ -145,8 +139,8 @@ for i = 1:160
             if cosAOI_rear2 > 0
                 AOI_rear_Albedo2 = acosd(cosAOI_rear2);
                 [~,angle_index] = min(abs(AOI_rear_Albedo2-angles_GENPRO));
-                Irradiance_angles(angle_index,:,2) = Irradiance_angles(angle_index,:,2)+Bi(i,:).*Sens'*weigth2;
-                Flux_angles(angle_index,:,2) = Flux_angles(angle_index,:,2)+Bf(i,:).*Sens'*weigth2;
+                Irradiance_angles(:,angle_index,2) = Irradiance_angles(:,angle_index,2)+Bi(i,:)'.*Sens*weigth2;
+                Flux_angles(:,angle_index,2) = Flux_angles(:,angle_index,2)+Bf(i,:)'.*Sens*weigth2;
             end
         end
     end
@@ -154,17 +148,17 @@ end
 
 %% The correction factor is found based on the absorbed current density
 if Bifacial == 0
-    A = max(interp1(wav_GENPRO*1e-6,A',wav),0);
-    J_test = sum(trapz(wav,A.*Flux_angles(:,:,1)'),2);
+    A = max(interp1(wav_GENPRO,A',wav),0);
+    J_test = sum(trapz(wav,A.*Flux_angles(:,:,1)),2);
     factor = J_test./J_abs;
     Irradiance_angles = Irradiance_angles./factor;
     Flux_angles = Flux_angles./factor;
     Irradiance_angles = squeeze(Irradiance_angles(:,:,1));
     Flux_angles = squeeze(Flux_angles(:,:,1));
 elseif Bifacial == 1
-    A1 = max(interp1(wav_GENPRO*1e-6,A(:,:,1)',wav),0);
-    A2 = max(interp1(wav_GENPRO*1e-6,A(:,:,2)',wav),0);
-    J_test = sum(trapz(wav,A1.*Flux_angles(:,:,1)'+A2.*Flux_angles(:,:,2)'));
+    A1 = max(interp1(wav_GENPRO,A(:,:,1)',wav),0);
+    A2 = max(interp1(wav_GENPRO,A(:,:,2)',wav),0);
+    J_test = sum(trapz(wav,A1.*Flux_angles(:,:,1)+A2.*Flux_angles(:,:,2)));
     factor = J_test./J_abs;
     Irradiance_angles = Irradiance_angles./factor;
     Flux_angles = Flux_angles./factor;
@@ -203,4 +197,13 @@ function [weigth1, weigth2] = Define_Weights(cosAOI_rear,cosAOI_rear2,Sens,verte
         weigth2 = 0;
     elseif cosAOI_rear < 0 && cosAOI_rear2 > 0
         weigth1 = 0;
-        weigth2 = 
+        weigth2 = 1;
+    else
+        dist1 = rms(Sens-cosAOI_rear);
+        dist2 = rms(Sens-cosAOI_rear);
+        weigth1 = (1/dist1)/(1/dist1+1/dist2);
+        weigth2 = (1/dist2)/(1/dist1+1/dist2);
+        
+    end
+
+end

@@ -1,4 +1,4 @@
-function [P_con,P_mismatch,P_cable,P_inv] = SystemLossesSingle(Sys_Losses_input,TOOLBOX_input,ELECTRIC_output,MODULE_output)
+function [P_con,P_mismatch,P_cable,P_inv] = SystemLossesSingle(Sys_Losses_input,TOOLBOX_input,MODULE_output,CONVERSION_output)
 %SystemLossesSingle Calculates the system losses of the system 
 % with single junction modules.
 %
@@ -11,10 +11,12 @@ function [P_con,P_mismatch,P_cable,P_inv] = SystemLossesSingle(Sys_Losses_input,
 %   The needed inputs for the system losses calculation
 % TOOLBOX_input : struct
 %   Simulation parameters
-% ELECTRIC_output : struct
-%   Simulation results of the ELECTRIC module
 % MODULE_output : struct
 %   Simulation results of the MODULE module
+% ELECTRIC_output : struct
+%   Simulation results of the ELECTRIC module
+% CONVERSION_output : struct
+%   Simulation results of the CONVERSION module 
 %
 % Returns
 % -------
@@ -53,7 +55,7 @@ for i = 1:N_cells
     n = Parameters(i,:,4)';
     I0 = Parameters(i,:,5)';
 
-    [I_mpp_cell, V_mpp_cell] =  MPPfinder(Iph,Rs,Rsh,n,I0,T_cell);
+    [I_mpp_cell, V_mpp_cell] =  MPPfinder(TOOLBOX_input,Iph,Rs,Rsh,n,I0,T_cell);
     V_mpp_cell(isnan(I_mpp_cell)) = 0;
     I_mpp_cell(isnan(I_mpp_cell)) = 0;
     P_mpp_cell(:,i) = I_mpp_cell'.*V_mpp_cell';
@@ -61,7 +63,7 @@ for i = 1:N_cells
 end
 P_mismatch = sum(P_mpp_cell,2)-I_mpp.*V_mod;
 
-if (isfield(TOOLBOX_input, 'runACConversionPart')==1)
+if isstruct(CONVERSION_output)
     if TOOLBOX_input.runACConversionPart == 1
         Pdc = Sys_Losses_input.Pdc;
         Pac = Sys_Losses_input.Pac;
@@ -73,4 +75,12 @@ if (isfield(TOOLBOX_input, 'runACConversionPart')==1)
         end
         P_inv = Pdc*panels - P_cable-Pac;
     else
-        P_cable = 
+        P_cable = 0;
+        P_inv = 0;
+    end
+else
+    P_cable = 0;
+    P_inv = 0;
+end
+
+end

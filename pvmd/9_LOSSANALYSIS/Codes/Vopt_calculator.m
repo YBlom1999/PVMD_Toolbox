@@ -32,12 +32,15 @@ lambda_g = h*c/(E_g*q);
 N_lambda = find(wav > h*c/(q*E_g),1)-1;
 E = h*c./wav;
 N = 100;
-Vopt = linspace(0,E_g,N);
-J_abs = zeros(size(photon_spec,1),N);
+Vopt = linspace(0,E_g,N)';
+J_abs = zeros(N,size(photon_spec,1));
 for i = 1:N
-    photon_BB_cell = (2*Angle_emit*c./(wav.^4)*1./(exp((E-q*Vopt(i))*(1./(k*T_cell))')-1))';
+    photon_BB_cell = (2*Angle_emit*c./(wav.^4)*1./(exp((E-q*Vopt(i)).*(1./(k*T_cell)))-1));
     J_in = (photon_spec(:,1:N_lambda)-photon_BB_cell(:,1:N_lambda))*q;
-    J_abs(:,i) = trapz(wav(1:N_lambda),J_in')';
+    J_abs(i,:) = trapz(wav(1:N_lambda),J_in')';
 end
 P = J_abs.*Vopt;
-[~,ind_m
+[~,ind_max] = max(P);
+Vopt = Vopt(ind_max);
+end
+

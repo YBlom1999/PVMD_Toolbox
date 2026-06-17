@@ -47,11 +47,6 @@ elseif strcmp(TOOLBOX_input.thermal.Temperature_model,'Sandia model')
     fields = {'a', 'b'};
 elseif strcmp(TOOLBOX_input.thermal.Temperature_model,'Incropera model')
     fields = {'Nlayers','RearConvection', 'RearTemperature','Efficiency'};
-    if ~check_input_Incropera(TOOLBOX_input.thermal)
-        fprintf('Aborting thermal calculation, Input invalid\n')
-        return
-    end
-
 end
 missing_fields = ~isfield(TOOLBOX_input.thermal, fields);
 if any(missing_fields)
@@ -65,8 +60,7 @@ end
 disp('Calculating Cell Temperatures. This may take a minute or two...');
 
 %---- Calculate plane of array irradiance
-periodic = TOOLBOX_input.runPeriodic;
-poa_cell = calculate_poa_cell(periodic, WEATHER_output);
+poa_cell = WEATHER_output.A;
 
 %---- Calculate cell temperature using the selected thermal model
 cell_temperature = cell(numel(poa_cell),1);
@@ -80,7 +74,7 @@ for i = 1:numel(poa_cell)
             WEATHER_output.wind_speed,...
             poa_cell{i},...
             TOOLBOX_input,...
-            MODULE_output);
+            MODULE_output,i);
     elseif strcmp(TOOLBOX_input.thermal.Temperature_model,'Duffie-Beckman model')
         cell_temperature{i} = cellTempCalcDB(WEATHER_output.ambient_temperature, ...
             WEATHER_output.wind_speed,poa_cell{i},TOOLBOX_input.thermal);
@@ -115,12 +109,6 @@ for i = 1:numel(poa_cell)
     end
 end
 
-% FIXME: down-stream function needs cell_temperature to be array in case a
-% single cell. Update to accept cell
-if numel(cell_temperature) == 1
-    cell_temperature = cell_temperature{1};
-end
-
 % Add temperature to output structure
 THERMAL_output(1).T = cell_temperature;
 
@@ -129,8 +117,8 @@ if TOOLBOX_input.thermal.plot_thermal
 
     if TOOLBOX_input.runPeriodic 
         figures_cell_temperature_per(...
-            WEATHER_output.Irr,...
-            THERMAL_output.T,...
+            WEATHER_output.Irr{1},...
+            THERMAL_output.T{1},...
             WEATHER_output.ambient_temperature,...
             WEATHER_output.day,...
             WEATHER_output.month, ...
@@ -140,7 +128,6 @@ if TOOLBOX_input.thermal.plot_thermal
             WEATHER_output.Irr,...
             THERMAL_output.T,...
             WEATHER_output.ambient_temperature,...
-            WEATHER_output,...
             TOOLBOX_input);
     end
 end

@@ -1,6 +1,31 @@
-function h = flatplot3(V,F,C,h)
-%2D plot of icohemishpere. Facet color C.  3D cartesian coordinates are
-%converted to 2D cylincer coordinates first.
+function h = flatplot3(V,F,C,cLimit,colorMap,Title,h)
+% flatplot3 makes a flat projection of the sensitivity map.
+%
+% This function makes a figure that displays the sensitivity map
+%
+% Parameters
+% ----------
+% V : double
+%   The vertices of the sky elements
+% F : double
+%   The faces of the sky elements
+% C: double
+%   The color of the sky elements
+% cLimit: double
+%   The limits of the color scale that should be considered
+% colorMap: double
+%   The colormap that should be used for the visualization
+% Title: string
+%   The title that should be used in the plot
+% h: figure
+%   The figure that should be used for the plot
+%
+% Returns
+% -------
+% h: figure
+%   The figure that should be used for the plot
+%
+% Developed by Rudi Santbergen
 
 if isnumeric(h)                     %if handle is just a number
     Vcyl = cart2cyl(V);             %convert 3D to 2D coordinates
@@ -11,16 +36,14 @@ if isnumeric(h)                     %if handle is just a number
     %---make it pretty---
     axis equal off
     shading flat
-    colormap(jet(512))
-    caxis([0,1])
+    colormap(colorMap)
+    caxis(cLimit)
     hc = colorbar;
-    set(get(hc,'Title'),'string','Sensitivity [-]','FontSize',15)
-    text(  0, 95,'North','HorizontalAlignment','center','FontSize',15)
-    text( 95,  0,'East' ,'HorizontalAlignment','center','Rotation',-90,'FontSize',15)
-    text(  0,-95,'South','HorizontalAlignment','center','FontSize',15)
-    text(-95,  0,'West' ,'HorizontalAlignment','center','Rotation',90,'FontSize',15)
-    ax =gca;
-    ax.FontSize = 15;
+    set(get(hc,'Title'),'string',Title)
+    text(  0, 95,'North','HorizontalAlignment','center')
+    text( 95,  0,'East' ,'HorizontalAlignment','center','Rotation',-90)
+    text(  0,-95,'South','HorizontalAlignment','center')
+    text(-95,  0,'West' ,'HorizontalAlignment','center','Rotation',90)
 else                                %if h is a real handle of existing figure
     set(h,'FaceVertexCData',C);     %just update the color
 end

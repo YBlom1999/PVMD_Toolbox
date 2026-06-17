@@ -1,4 +1,4 @@
-function [pvt_collector_output] = bifluid_air_water_tank_redtemp(~, WEATHER_output)
+function [pvt_collector_output] = bifluid_air_water_tank_redtemp(~,~, WEATHER_output)
 %This function calculates the thermal & PV yield of tank integrated with bi-fluid PVT
 % Bi-fluid PV-T with tank (estimated coefficients from real model)
 %
@@ -14,7 +14,8 @@ function [pvt_collector_output] = bifluid_air_water_tank_redtemp(~, WEATHER_outp
 % 
 % Developed by ZUA.
 
-I = mean(WEATHER_output.Irr,2)';
+I = mean(WEATHER_output.Irr{1},2)';
+
 Tam = [WEATHER_output.ambient_temperature]';
 Vw = [WEATHER_output.wind_speed]';
 
@@ -46,8 +47,8 @@ DemT= 60;
 IntT = Tam(1);
 
 % Calculate surface area of tank
-r = 0.4;
-h = 0.6;
+r = 0.3;
+h = 0.7;
 rho_wat = 1000;                      % water density (kg/m^3)
 A_cylinder = 2*pi*r*h;               % Surface area of the cylindrical portion
 A_top = pi*r^2;                      % Surface area of the top
@@ -63,10 +64,10 @@ A_g = 4.33;                      % Gross Collector Area (m2) => 3.28*1.32
 dm_w = 0.015;                    % Water Mass Flowrate (kg/s)
 dm_f = 0.10;                     % Air Mass Flowrate (kg/s)
 T0 = IntT;                       % Initial Temperature of the fluid entering the collector (°C)
-Tt0 = IntT;                      % Initial Temperature of the fluid inside tank (°C)
+Tt0 = 50; %T0                    % Initial Temperature of the fluid inside tank (°C)
 % T_ref = 25;                    % Reference temperature - STC (°C)
 % be = 0.0045;                   % Temperature coefficient
-d_insulation = 0.08;             % insulation thickness (m)
+d_insulation = 0.10;             % insulation thickness (m)
 k_insulation = 0.034;            % insulation thermal conductivity (W/m.K)
 rho_air = 1.204;                 % density of air (kg/m^3)
 mu_air = 1.82e-5;                % dynamic viscosity of air (Pa.s)
@@ -74,7 +75,7 @@ k_air = 0.0257;                  % thermal conductivity of air (W/m.K)
 Pr = 0.707;                      % Prandtl number for air
 g = 9.81;                        % gravitational acceleration (m/s2)
 beta = 257e-6;                   % thermal expansion coefficient (1/T)
-d_o = 0.025;                     % outer diameter of tube (m)
+d_o = 0.030;                     % outer diameter of tube (m)
 v = 8.917e-7;                    % kinematic viscosity (m2/s)
 alpha_d = 1.455e-7;              % thermal diffusivity (m2/s)
 k = 0.62;                        % thermal conductivity (W/mK)
@@ -170,17 +171,23 @@ Tfo(i) = (T_fi(i)) + ((eta_tha_f(i)*A_g*I(i)))/(dm_f*C_f);
 NOCT = 42;                       % typical module at 48°C (best module operated at a NOCT of 33°C, the worst at 58°C)
 S = I*0.1;                       % insolation in mW/cm^2
 Tc = Tam + S*(NOCT - 20)/80;  
+
+% Tc_pv = 30 + 0.0175*(I - 300) + 1.14*(Tam - 25);
+% Tc = Tc_pv + ((T_i + Two)/2 - Tam);
+
 Diff(i) = Two(i) - Tt(i);
 if Diff(i)<0
     Diff(i) = 0.05;
-end
-R_a(i) = (g*beta*(Diff(i))*d_o^3)/(v*alpha_d); % Rayleigh number
+end 
+L_c_1 = 2;                                          % cc
+R_a(i) = (g*beta*(Diff(i))*d_o^3)/(v*alpha_d);      % Rayleigh number
 h_e(i) = (k*C*R_a(i).^n)/d_o;                       % heat transfer coefficient (W/m2K)
-A_e = pi*d_o*L_c;                                   % heat transfer area
+A_e = pi*d_o*L_c_1;                                 % heat transfer area
 % U_A = 1/((1/(h_e*A_e)) + (1/(h_i*A_i)));          % overall heat transfer coefficient
 U_A(i) = h_e(i)*A_e;                                % overall heat transfer coefficient
 NTU(i) = U_A(i)/(dm_w*C_w);                         % number of transfer units
 eta(i) = 1 - exp(-NTU(i));
+plot(eta)
 
 % Instantaneous total power at normal incidence
 Qa(i) = (eta_tha_w(i) + eta_tha_f(i))*A_g*I(i);
@@ -244,7 +251,7 @@ end
 
 %% Fraction of thermal energy demand covered by PVT system
 T_dem = DemT*ones(size(Tt));     
-dm_lbb = 0.0014236;
+dm_lbb = 0.00138889;
 % if Twin<Tt
 TA = sum(dm_lbb.*C_w.*(Tt - Twin));       % Load
 % else
@@ -256,9 +263,17 @@ F_th = 100.*(TA./TB);
 % % % % disp(['Annual DHW demand:', num2str(TB/1000), 'kW']);
 disp(['Fraction of thermal energy demand covered for DHW:', num2str(F_th), '%']);
 
+% % % % Total DHW load
+% % % TC = sum(dm_lbb.*C_w.*(T_dem - Twin))/(1000);
+% % % % Auxiliary load required
+% % % TD = sum(dm_lbb.*C_w.*(T_dem - Tt))/(1000);
+% % % disp(['DHW load:', num2str(TC), 'kWh']);
+% % % disp(['Auxiliary load:', num2str(TD), 'kWh']);
+
 %%
 % Total solar irradiance received by the PVT system in kWh/m^2/year
-total_I_sun = sum(mean(WEATHER_output.Irr,2))/1000; 
+total_I_sun = sum(mean(WEATHER_output.Irr{1},2))/1000;
+% disp(['Total solar radiation:', num2str(total_I_sun), 'kWh']);
 % Average thermal efficiency
 etaSum = sum(eta_tha)/length(I1);
 % Average electrical efficiency
@@ -283,7 +298,7 @@ pvt_collector_output.total_electrical_output=total_electrical_output;
 
 %% Plot results
 period=WEATHER_output.Period;
-Irr = mean(WEATHER_output.Irr,2);
+Irr = mean(WEATHER_output.Irr{1},2);
 ambient_temperature = WEATHER_output.ambient_temperature;
 
 time = length(Irr);
@@ -346,6 +361,10 @@ plot(xx,Tt,'DisplayName','T_{t}')
 plot(xx,Tam,'DisplayName','T_{am}')
 % plot(xx,Tc,'DisplayName','T_{c}')
 ylabel('temperature [^oC]')
+% % %%%
+% % yyaxis right
+% % plot(xx,Irr, 'DisplayName','G')
+% % ylabel('Solar radiation [Wm^{2}]')
 xlabel('month')
 if time/24 >=31
         xticks(ticks); xticklabels(month_labelss)

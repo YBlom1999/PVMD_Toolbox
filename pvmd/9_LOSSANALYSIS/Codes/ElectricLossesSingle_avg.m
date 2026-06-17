@@ -1,4 +1,4 @@
-function [P_series,P_shunt,P_NRRI,P_NRRV] = ElectricLossesSingle_avg(Elec_Losses_input,MODULE_output)
+function [P_series,P_shunt,P_NRRI,P_NRRV] = ElectricLossesSingle_avg(Elec_Losses_input,TOOLBOX_input,MODULE_output)
 %ElectricLossesSingle_avg Calculates the electrical losses of the system 
 % with single junction modules.
 %
@@ -9,6 +9,8 @@ function [P_series,P_shunt,P_NRRI,P_NRRV] = ElectricLossesSingle_avg(Elec_Losses
 % ----------
 % Elec_Losses_input : struc
 %   The needed inputs for the electrical losses calculation
+% TOOLBOX_input : struct
+%   Simulation parameters
 % MODULE_output : struct
 %   Simulation results of the MODULE module
 %
@@ -47,24 +49,27 @@ for i = 1:N_cells
     n = Parameters(i,:,4)';
     I0 = Parameters(i,:,5)';
 
-    [I_mpp, V_mpp] =  MPPfinder(Iph,Rs,Rsh,n,I0,T_cell);
+    [I_mpp, V_mpp] =  MPPfinder(TOOLBOX_input,Iph,Rs,Rsh,n,I0,T_cell);
     V_mpp(isnan(I_mpp)) = 0;
     I_mpp(isnan(I_mpp)) = 0;
 
-    V_series = I_mpp.*Rs';
+    V_series = I_mpp.*Rs;
 
     V_NRRV = V_opt1-V_mpp-V_series;
 
-    I_shunt = (V_mpp+I_mpp*Rs)./Rsh';
+    I_shunt = (V_mpp+I_mpp.*Rs)./Rsh;
     I_shunt(isnan(I_shunt)) = 0;
-    I_NRRI = (Iph'-I_mpp-I_shunt);
+    I_NRRI = (Iph-I_mpp-I_shunt);
 
-    P_series(:,i) = I_mpp'.*V_series';
-    P_shunt(:,i) = I_shunt'.*(V_mpp+V_series)';
-    P_NRRV(:,i) = V_NRRV'.*Iph;
-    P_NRRI(:,i) = I_NRRI'.*(V_mpp+V_series)';
+    P_series(:,i) = I_mpp.*V_series;
+    P_shunt(:,i) = I_shunt.*(V_mpp+V_series);
+    P_NRRV(:,i) = V_NRRV.*Iph;
+    P_NRRI(:,i) = I_NRRI.*(V_mpp+V_series);
 
 
 end
 P_series = sum(P_series,2);
-P_shunt 
+P_shunt = sum(P_shunt,2);
+P_NRRV = sum(P_NRRV,2);
+P_NRRI = sum(P_NRRI,2);
+end

@@ -1,4 +1,4 @@
-function [pvt_collector_output] = air_based_dualchanel(MODULE_output, WEATHER_output)
+function [pvt_collector_output] = air_based_dualchanel(~,MODULE_output, WEATHER_output)
 % Calculates the thermal and PV yield of dual chanel air-based PVT collector
 % 06-23
 %
@@ -16,7 +16,7 @@ function [pvt_collector_output] = air_based_dualchanel(MODULE_output, WEATHER_ou
 % 
 % Developed by ZUA.
 
-Ia = mean(WEATHER_output.Irr,2)';
+Ia = mean(WEATHER_output.Irr{1},2)';
 Tam = [WEATHER_output.ambient_temperature]';
 Vw = [WEATHER_output.wind_speed]';
 L = MODULE_output.ML;
@@ -116,7 +116,7 @@ Quele = Ia.*eta_E;
 Quth = Ia.*eta_tha;
 
 % Total solar irradiance received by the PVT system in kWh/m^2/year
-total_I_sun = sum(mean(WEATHER_output.Irr,2))./1000; 
+total_I_sun = sum(mean(WEATHER_output.Irr{1},2))./1000; 
 % Average thermal efficiency
 etaSum = sum(eta_tha)./length(I1);
 % Average electrical efficiency
@@ -146,7 +146,7 @@ pvt_collector_output.h=h;
 
 %% Plot
 period=WEATHER_output.Period;
-Irr = mean(WEATHER_output.Irr,2);
+Irr = mean(WEATHER_output.Irr{1},2);
 ambient_temperature = WEATHER_output.ambient_temperature;
 
 time = length(Irr);

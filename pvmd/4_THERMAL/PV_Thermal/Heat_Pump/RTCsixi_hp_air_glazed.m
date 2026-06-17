@@ -1,4 +1,4 @@
-function [pvt_collector_output] = RTCsixi_hp_air_glazed(MODULE_output, WEATHER_output)
+function [pvt_collector_output] = RTCsixi_hp_air_glazed(TOOLBOX_input,MODULE_output, WEATHER_output)
 %This function calculates the thermal & PV yield of PVT collector integrated with HP
 % Air to water - Heat pump RTC 6i - (input: 0.5-1.5kW) & (output: 1.6-4.46kW)
 % Output (W) - if desired (flow temperature is 35 & 45oC - 50Hz)
@@ -23,10 +23,7 @@ function [pvt_collector_output] = RTCsixi_hp_air_glazed(MODULE_output, WEATHER_o
 % 
 % Developed by ZUA.
 
-% Output from HP (W) - if desired (flow temperature is 35 & 45oC - 50Hz)
-T_out = 45;
-
-Ia = mean(WEATHER_output.Irr,2)';
+Ia = mean(WEATHER_output.Irr{1},2)';
 Tam = [WEATHER_output.ambient_temperature]';
 Vw = [WEATHER_output.wind_speed]';
 L = MODULE_output.ML;
@@ -109,38 +106,34 @@ Tt = mean(reshape(Tt_1(1:numGroups*groupSize), groupSize, numGroups));
 Ti = mean(reshape(Ti_1(1:numGroups*groupSize), groupSize, numGroups));
 
 %%-------------------------Heat pump RTC 6i--------------------------------
+T_out  = TOOLBOX_input.thermal.T_out;
 O_hp = zeros(size(Tam));
 COP_hp = zeros(size(Tam));
 P_hp = zeros(size(Tam));
 
 n = 11;
 
-% T0 = -7
-% T1 = 2;
-% T2 = 7;
-% T3 = 12;
-% T = [T0:(T1 - T0)/n:T1 T1:(T2 - T1)/n:T2 T2:(T3 - T2)/n:T3];
+T_out = [35, 45];
+O = [2270, 2010; 3150, 2820; 3240, 3100; 3710, 3480];
+COP = [3.15, 2.36; 4.20, 3.10; 4.32, 3.33; 4.95, 3.70];
+% T = -7, 2, 7, 12
 
-if T_out == 35
-O0 = 2270;
-O1 = 3150;
-O2 = 3240;
-O3 = 3710;
-COP0 = 3.15;
-COP1 = 4.20;
-COP2 = 4.32;
-COP3 = 4.95;
+% Find index of the temperature in the array
+[~, idx] = ismember(T_out, T_out);
 
-elseif T_out == 45
-O0 = 2010;
-O1 = 2820;
-O2 = 3100;
-O3 = 3480;
-COP0 = 2.36;
-COP1 = 3.10;
-COP2 = 3.33;
-COP3 = 3.70;
-
+% Assign values based on the temperature index
+if idx ~= 0
+    O0 = O(1, idx);
+    O1 = O(2, idx);
+    O2 = O(3, idx);
+    O3 = O(4, idx);
+    COP0 = COP(1, idx);
+    COP1 = COP(2, idx);
+    COP2 = COP(3, idx);
+    COP3 = COP(4, idx);
+else
+    error('Temperature value not found.');
+end
 % elseif T_out == 55
 % O0 = 1790;
 % O1 = 2300;      % @2*C: assumed
@@ -150,7 +143,6 @@ COP3 = 3.70;
 % COP1 = 2.16;    % @2*C: assumed
 % COP2 = 2.53;
 % COP3 = 3.26;
-end
 
 O = [O0:(O1 - O0)/n:O1 O1:(O2 - O1)/n:O2 O2:(O3 - O2)/n:O3];
 COP = [COP0:(COP1 - COP0)/n:COP1 COP1:(COP2 - COP1)/n:COP2 COP2:(COP3 - COP2)/n:COP3];
@@ -327,7 +319,7 @@ Quele = Ia.*eta_E;
 Quth = Ia.*eta_tha;
 
 % Total solar irradiance received by the PVT system in kWh/m^2/year
-total_I_sun = sum(mean(WEATHER_output.Irr,2))./1000; 
+total_I_sun = sum(mean(WEATHER_output.Irr{1},2))./1000; 
 % Average thermal efficiency
 etaSum = sum(eta_tha)./length(I1);
 % Average electrical efficiency
@@ -359,7 +351,7 @@ pvt_collector_output.COP_hp=COP_hp;
 
 %% Plot
 period=WEATHER_output.Period;
-Irr = mean(WEATHER_output.Irr,2);
+Irr = mean(WEATHER_output.Irr{1},2);
 ambient_temperature = WEATHER_output.ambient_temperature;
 
 time = length(Irr);

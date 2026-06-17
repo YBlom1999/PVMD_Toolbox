@@ -1,4 +1,4 @@
-function [pvt_collector_output] = bifluid_air_water(MODULE_output, WEATHER_output)
+function [pvt_collector_output] = bifluid_air_water(~,MODULE_output, WEATHER_output)
 % Calculates the thermal and PV yield of bi-fluid PVT collector
 % 07-23
 %
@@ -16,7 +16,7 @@ function [pvt_collector_output] = bifluid_air_water(MODULE_output, WEATHER_outpu
 % 
 % Developed by ZUA.
 
-Ia = mean(WEATHER_output.Irr,2)';
+Ia = mean(WEATHER_output.Irr{1},2)';
 Tam = [WEATHER_output.ambient_temperature]';
 Vw = [WEATHER_output.wind_speed]';
 L = MODULE_output.ML;
@@ -39,8 +39,8 @@ V_w = repelem(Vw, n_repeats);
 pvt_collector_output.y = zeros(length(Ia),9);
 x0 = [23, 25, 24, 24, 23, 24, 23, 24, 20];
 tspan = 0:1:length(Ta)-1;
-dm_f = 0.020;                    % mass flow rate of air (kg/sec) - 0.018
-dm_w = 0.017;                    % mass flow rate of water (kg/sec) - 0.015
+dm_f = 0.018;                    % mass flow rate of air (kg/sec) - 0.018
+dm_w = 0.015;                    % mass flow rate of water (kg/sec) - 0.015
 [t1, x1] = ode23(@(t, x) odeq(t, x, Ta, G, V_w, L, W, dm_f, dm_w), tspan, x0);
 
 T_amb = Ta(floor(t1) + 1);
@@ -124,7 +124,7 @@ pvt_collector_output.y(:, 12) = eta_tha;   % Store eta_tha values in the twelvth
 pvt_collector_output.y(:, 13) = eta_E;     % Store eta_E values in the thirteenth column of y
 
 % Total solar irradiance received by the PVT system in kWh/m^2/year
-total_I_sun = sum(mean(WEATHER_output.Irr,2))/1000; 
+total_I_sun = sum(mean(WEATHER_output.Irr{1},2))/1000; 
 % Average thermal efficiency
 etaSum = sum(eta_tha)/length(I1);
 % Average electrical efficiency
@@ -147,7 +147,7 @@ pvt_collector_output.total_electrical_output=total_electrical_output;
 
 %% Plot
 period=WEATHER_output.Period;
-Irr = mean(WEATHER_output.Irr,2);
+Irr = mean(WEATHER_output.Irr{1},2);
 ambient_temperature = WEATHER_output.ambient_temperature;
 
 time = length(Irr);
@@ -303,7 +303,7 @@ lamda_ins = 0.034;               % Thermal conductivity of insulator (W/mK)
 l_ins = 0.05;
 C_f = 1007;
 rou_ins = 20;
-V = 1.5;
+V = 1.75;
 em_abs = 0.25;
 lamda_abs = 160;                 % for Aluminum
 l_abs = 0.001;

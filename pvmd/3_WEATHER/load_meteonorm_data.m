@@ -40,10 +40,8 @@ function [weather_data, number_hours] = load_meteonorm_data(TOOLBOX_input)
 % Developed by unknown (E. Garcia?). Commented by A. Alcaniz
 
 %---- Load weather file
-[~,~,data_folder] = get_folder_structure;
-locations_dir = fullfile(data_folder,'Weather','Locations');
-climate_file = fullfile(locations_dir,TOOLBOX_input.irradiation.climateFile);
-load(climate_file,'weather_data');
+DeviceFilePath = [TOOLBOX_input.irradiation.climateFile,'.xlsx'];
+weather_data = table2array(readtable(DeviceFilePath));
 
 %---- Filter weather data based on period selected by user
 % The year should be selected not set randomly to 2021

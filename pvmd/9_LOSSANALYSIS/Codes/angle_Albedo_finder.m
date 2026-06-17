@@ -40,4 +40,5 @@ else
     heigth_angle = 2*height+sind(Mod_tilt)*0.5*length;
     length_angle = 0.5*length_actual/cosd(Sun_Azi-180);
 end
-angle_albedo 
+angle_albedo = 90-atand(length_angle/heigth_angle);
+end

@@ -54,11 +54,11 @@ if strcmp(Type,'Tan')
     Current_axes = 0:0.01:max([Iph1_init,Iph2_init])*1.2;
 
     z=(Rs1_init*I01_init/(n1_init*Vth*(1+Rs1_init/Rsh1_init)))*exp((Rs1_init*(Iph1_init+I01_init)+Voltage)./(n1_init*Vth*(1+Rs1_init/Rsh1_init)));
-    Current=(Iph1_init+I01_init-Voltage/(Rsh1_init))/(1+Rs1_init/Rsh1_init)-lambertw(z).*(n1_init*Vth)/Rs1_init;
+    Current=(Iph1_init+I01_init-Voltage/(Rsh1_init))/(1+Rs1_init/Rsh1_init)-lambertw_pvmd(z).*(n1_init*Vth)/Rs1_init;
     Voltage1_init = interp1(Current,Voltage,Current_axes,'linear','extrap');
 
     z=(Rs2_init*I02_init/(n2_init*Vth*(1+Rs2_init/Rsh2_init)))*exp((Rs2_init*(Iph2_init+I02_init)+Voltage)./(n2_init*Vth*(1+Rs2_init/Rsh2_init)));
-    Current=(Iph2_init+I02_init-Voltage/(Rsh2_init))/(1+Rs2_init/Rsh2_init)-lambertw(z).*(n2_init*Vth)/Rs2_init;
+    Current=(Iph2_init+I02_init-Voltage/(Rsh2_init))/(1+Rs2_init/Rsh2_init)-lambertw_pvmd(z).*(n2_init*Vth)/Rs2_init;
     Voltage2_init = interp1(Current,Voltage,Current_axes,'linear','extrap');
 
     Voltage_init = Voltage1_init+Voltage2_init;
@@ -77,11 +77,11 @@ if strcmp(Type,'Tan')
     I02_new = ELECTRIC_output_new.Parameters_STC_2(1,5);
 
     z=(Rs1_new*I01_new/(n1_new*Vth*(1+Rs1_new/Rsh1_new)))*exp((Rs1_new*(Iph1_new+I01_new)+Voltage)./(n1_new*Vth*(1+Rs1_new/Rsh1_new)));
-    Current=(Iph1_new+I01_new-Voltage/(Rsh1_new))/(1+Rs1_new/Rsh1_new)-lambertw(z).*(n1_new*Vth)/Rs1_new;
+    Current=(Iph1_new+I01_new-Voltage/(Rsh1_new))/(1+Rs1_new/Rsh1_new)-lambertw_pvmd(z).*(n1_new*Vth)/Rs1_new;
     Voltage1_new = interp1(Current,Voltage,Current_axes,'linear','extrap');
 
     z=(Rs2_new*I02_new/(n2_new*Vth*(1+Rs2_new/Rsh2_new)))*exp((Rs2_new*(Iph2_new+I02_new)+Voltage)./(n2_new*Vth*(1+Rs2_new/Rsh2_new)));
-    Current=(Iph2_new+I02_new-Voltage/(Rsh2_new))/(1+Rs2_new/Rsh2_new)-lambertw(z).*(n2_new*Vth)/Rs2_new;
+    Current=(Iph2_new+I02_new-Voltage/(Rsh2_new))/(1+Rs2_new/Rsh2_new)-lambertw_pvmd(z).*(n2_new*Vth)/Rs2_new;
     Voltage2_new = interp1(Current,Voltage,Current_axes,'linear','extrap');
 
     Voltage_new = Voltage1_new+Voltage2_new;
@@ -143,7 +143,7 @@ else
     Current_axes = 0:0.01:Iph_init*1.2;
 
     z=(Rs_init*I0_init/(n_init*Vth*(1+Rs_init/Rsh_init)))*exp((Rs_init*(Iph_init+I0_init)+Voltage)./(n_init*Vth*(1+Rs_init/Rsh_init)));
-    Current=(Iph_init+I0_init-Voltage/(Rsh_init))/(1+Rs_init/Rsh_init)-lambertw(z).*(n_init*Vth)/Rs_init;
+    Current=(Iph_init+I0_init-Voltage/(Rsh_init))/(1+Rs_init/Rsh_init)-lambertw_pvmd(z).*(n_init*Vth)/Rs_init;
     Voltage_init = interp1(Current,Voltage,Current_axes,'linear','extrap');
     Voltage_init = (Voltage_init-Current_axes*Rcon_init)*numCells;
 
@@ -154,7 +154,7 @@ else
     I0_new = ELECTRIC_output_new.Parameters_STC_1(1,5);
 
     z=(Rs_new*I0_new/(n_new*Vth*(1+Rs_new/Rsh_new)))*exp((Rs_new*(Iph_new+I0_new)+Voltage)./(n_new*Vth*(1+Rs_new/Rsh_new)));
-    Current=(Iph_new+I0_new-Voltage/(Rsh_new))/(1+Rs_new/Rsh_new)-lambertw(z).*(n_new*Vth)/Rs_new;
+    Current=(Iph_new+I0_new-Voltage/(Rsh_new))/(1+Rs_new/Rsh_new)-lambertw_pvmd(z).*(n_new*Vth)/Rs_new;
     Voltage_new = interp1(Current,Voltage,Current_axes,'linear','extrap');
     Voltage_new = (Voltage_new-Current_axes*Rcon_new)*numCells;
 

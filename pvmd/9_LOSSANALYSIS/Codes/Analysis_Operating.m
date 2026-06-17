@@ -29,18 +29,13 @@ function Losses_Operating = Analysis_Operating(TOOLBOX_input,CELL_output,MODULE_
 % Developed by Y. Blom
 
 
-
-%% constants
-CONSTANTS.h = 6.62607004e-34;
-CONSTANTS.q = 1.60217662e-19;
-CONSTANTS.c = 299792458;
-CONSTANTS.k = 1.380649e-23;
-CONSTANTS.T_S = 5778;
-
-
 %% Loaded input from the structures
 DCP = ELECTRIC_output.DCP;
 type = CELL_output.TYPE;
+angles_GENPRO = CELL_output.CELL_FRONT.aoi;
+N_angles = length(angles_GENPRO);
+SubMod_ind = CELL_output.SUBMOD_IND;
+N_Submod = max(SubMod_ind);
 if (isfield(TOOLBOX_input.Scene.module_mounting, 'avgSensitivity')==1)
     avg_sen = TOOLBOX_input.Scene.module_mounting.avgSensitivity;
 else
@@ -92,12 +87,7 @@ SM_f = MODULE_output.SM_f;
 if Bifacial; SM_r = MODULE_output.SM_r; end
 V_mpp = ELECTRIC_output.Vmpp;
 I_mpp = ELECTRIC_output.Impp;
-if (isfield(TOOLBOX_input, 'runACConversionPart')==1 && TOOLBOX_input.runACConversionPart == 1)
-    CONVERSION_Pac = CONVERSION_output.Pac;
-else
-    CONVERSION_Pac = [];
-end
-angles_GENPRO = CELL_output.CELL_FRONT.aoi;
+
 if (isfield(TOOLBOX_input.electric, 'Terminals')==1)
     Terminals = TOOLBOX_input.electric.Terminals;
 else
@@ -105,12 +95,12 @@ else
 end
 
 if strcmp(type,'SHJ')|| strcmp(type,'BIF')|| strcmp(type,'T-F') %If it is a single junction
-    days = find(sum(WEATHER_J,2));
+    days = find(sum(WEATHER_J{1},2));
     E_g = TOOLBOX_input.LossAnalysis.E_g;
     Parameters = zeros(Ncells,length(DCP),5);
     Parameters(:,days,:) = reshape(Parameters_1,Ncells,length(days),5);
 elseif strcmp(type,'Tan')  || strcmp(type,'BIF-Tan')%For a tandem cell
-    days = find(sum(WEATHER_J(:,:,1),2));
+    days = find(sum(WEATHER_J{1}(:,:,1),2));
     E_g1 = TOOLBOX_input.LossAnalysis.E_g1;
     E_g2 = TOOLBOX_input.LossAnalysis.E_g2;
     Parameters1 = zeros(Ncells,length(DCP),5);
@@ -122,19 +112,20 @@ end
 
 %% Prepare weather data
 weather_data = load_meteonorm_data(TOOLBOX_input);
-wav_orig = MODULE_output.wav*1e3;
+wav_orig = MODULE_output.wav;
 if TOOLBOX_input.irradiation.spectra_choice == 1
-    [RSD_i_dir,RSD_f_dir,RSD_i_dif,RSD_f_dif,air_mass,wav] = spectral_distrSMARTS(wav_orig*1e-3);
-    wav = wav*1e-6;
+    [RSD_i_dir,RSD_f_dir,RSD_i_dif,RSD_f_dif,air_mass,wav] = spectral_distrSMARTS(wav_orig,TOOLBOX_input.constants);
 elseif TOOLBOX_input.irradiation.spectra_choice == 2
-    [RSD_i_dir,RSD_f_dir,RSD_i_dif,RSD_f_dif,air_mass,wav] = spectral_distrSBDarts(wav_orig*1e-3);
-    wav = wav*1e-6;
+    [RSD_i_dir,RSD_f_dir,RSD_i_dif,RSD_f_dif,air_mass,wav] = spectral_distrSBDart(wav_orig,TOOLBOX_input.constants);
 end
 
-N_rep_before = find(wav*1e9 == wav_orig(1))-1;
-N_rep_after = length(wav) - find(wav*1e9 == wav_orig(end));
-SM_f = cat(4,repelem(SM_f(:,:,:,1),1,1,1,N_rep_before),SM_f,repelem(SM_f(:,:,:,end),1,1,1,N_rep_after));
-if Bifacial; SM_r = cat(4,repelem(SM_r(:,:,:,1),1,1,1,N_rep_before),SM_r,repelem(SM_r(:,:,:,end),1,1,1,N_rep_after)); end
+N_rep_before = find(wav == wav_orig(1))-1;
+N_rep_after = length(wav) - find(wav == wav_orig(end));
+for SubMod_i = 1:N_Submod
+    SM_f{SubMod_i} = cat(4,repelem(SM_f{SubMod_i}(:,:,:,1),1,1,1,N_rep_before),SM_f{SubMod_i},repelem(SM_f{SubMod_i}(:,:,:,end),1,1,1,N_rep_after));
+    if Bifacial; SM_r{SubMod_i} = cat(4,repelem(SM_r{SubMod_i}(:,:,:,1),1,1,1,N_rep_before),SM_r{SubMod_i},repelem(SM_r{SubMod_i}(:,:,:,end),1,1,1,N_rep_after)); end
+
+end
 
 SpecData.AM = air_mass;
 SpecData.WAV = wav;
@@ -148,8 +139,8 @@ SpecData.spectra_choice = TOOLBOX_input.irradiation.spectra_choice;
 Mod_tilt = ModTilt;
 Mod_alti = 90-Mod_tilt;
 Mod_azi = TOOLBOX_input.Scene.module_mounting.ModAzimuth;
-T_cell = mean(THERMAL_T,2)+273.15;
-Angle_abs = 67.7e-6; %https://en.wikipedia.org/wiki/Solid_angle
+T_cell = mean(THERMAL_T{1},2)+273.15;
+Angle_abs = TOOLBOX_input.constants.SolidAngleSun;
 
 
 
@@ -163,12 +154,11 @@ day_year = pvl_date2doy(weather_data(:,1), weather_data(:,2), ...
 day_angle = 2*pi*(day_year - 1)/365.25;
 E0 = 1.00011 + 0.034221*cos(day_angle) + 0.00128*sin(day_angle) + ...
     0.000719*cos(2*day_angle) + 0.000077*sin(2*day_angle);
-[src_folder,~,~] = get_folder_structure;
-load(fullfile(src_folder,'3_WEATHER','constants','weather_params.mat'), 'AM0')
+AM0 = TOOLBOX_input.constants.AM0;
 extra_sol_power = E0*AM0;
 if ~Bifacial
-    Irradiance_Year = zeros(length(DCP),15,length(wav));
-    Photon_flux_Year = zeros(length(DCP),15,length(wav));
+    Irradiance_Year = zeros(length(DCP),length(wav),N_angles);
+    Photon_flux_Year = zeros(length(DCP),length(wav),N_angles);
     for hour_index = 1:length(DCP)
         if DCP(hour_index) == 0
             continue
@@ -178,21 +168,21 @@ if ~Bifacial
         Incoming_Irr_input.Mod_alti = Mod_alti;
         Incoming_Irr_input.Mod_azi = Mod_azi;
         Incoming_Irr_input.Bifacial = Bifacial;
-        Incoming_Irr_input.J_abs = mean(WEATHER_J(hour_index,:,1));
+        Incoming_Irr_input.J_abs = mean(WEATHER_J{1}(hour_index,:,1));
         Incoming_Irr_input.AZA = AZA;
         Incoming_Irr_input.index = hour_index;
         Incoming_Irr_input.A = A;
         Incoming_Irr_input.extra_sol_power = extra_sol_power;
-        Incoming_Irr_input.SM_f = SM_f;
+        Incoming_Irr_input.SM_f = SM_f{1};
         Incoming_Irr_input.Ncells = Ncells;
         % Calculate the incoming irradiance
-        [Flux_angles,Irradiance_angles] = incoming_irradiance(Incoming_Irr_input,TOOLBOX_input,CELL_output,SpecData,weather_data,CONSTANTS);
+        [Flux_angles,Irradiance_angles] = incoming_irradiance(Incoming_Irr_input,TOOLBOX_input,CELL_output,SpecData,weather_data);
         Irradiance_Year(hour_index,:,:) = Irradiance_angles;
         Photon_flux_Year(hour_index,:,:) = Flux_angles;
     end
 else
-    Irradiance_Year = zeros(length(DCP),15,length(wav),2);
-    Photon_flux_Year = zeros(length(DCP),15,length(wav),2);
+    Irradiance_Year = zeros(length(DCP),length(wav),N_angles,2);
+    Photon_flux_Year = zeros(length(DCP),length(wav),N_angles,2);
     if strcmp(type,'BIF')
         for hour_index = 1:length(DCP)
             if DCP(hour_index) == 0
@@ -203,15 +193,15 @@ else
             Incoming_Irr_input.Mod_alti = Mod_alti;
             Incoming_Irr_input.Mod_azi = Mod_azi;
             Incoming_Irr_input.Bifacial = Bifacial;
-            Incoming_Irr_input.J_abs = mean(WEATHER_J(hour_index,:,1));
+            Incoming_Irr_input.J_abs = mean(WEATHER_J{1}(hour_index,:,1));
             Incoming_Irr_input.AZA = AZA;
             Incoming_Irr_input.index = hour_index;
             Incoming_Irr_input.A = A;
             Incoming_Irr_input.extra_sol_power = extra_sol_power;
-            Incoming_Irr_input.SM_f = SM_f;
-            Incoming_Irr_input.SM_r = SM_r;
+            Incoming_Irr_input.SM_f = SM_f{1};
+            Incoming_Irr_input.SM_r = SM_r{1};
             % Calculate the incoming irradiance
-            [Flux_angles,Irradiance_angles] = incoming_irradiance(Incoming_Irr_input,TOOLBOX_input,CELL_output,SpecData,weather_data,CONSTANTS);
+            [Flux_angles,Irradiance_angles] = incoming_irradiance(Incoming_Irr_input,TOOLBOX_input,CELL_output,SpecData,weather_data);
             Irradiance_Year(hour_index,:,:,:) = Irradiance_angles;
             Photon_flux_Year(hour_index,:,:,:) = Flux_angles;
         end
@@ -224,16 +214,16 @@ else
             Incoming_Irr_input.wav = wav;
             Incoming_Irr_input.Mod_alti = Mod_alti;
             Incoming_Irr_input.Mod_azi = Mod_azi;
-            Incoming_Irr_input.J_abs = mean(WEATHER_J(hour_index,:,:));
+            Incoming_Irr_input.J_abs = mean(WEATHER_J{1}(hour_index,:,:));
             Incoming_Irr_input.AZA = AZA;
             Incoming_Irr_input.index = hour_index;
             Incoming_Irr_input.A1 = A1;
             Incoming_Irr_input.A2 = A2;
             Incoming_Irr_input.extra_sol_power = extra_sol_power;
-            Incoming_Irr_input.SM_f = SM_f;
-            Incoming_Irr_input.SM_r = SM_r;
+            Incoming_Irr_input.SM_f = SM_f{1};
+            Incoming_Irr_input.SM_r = SM_r{1};
             % Calculate the incoming irradiance
-            [Flux_angles,Irradiance_angles] = incoming_irradiance_BIF_TAN(Incoming_Irr_input,TOOLBOX_input,CELL_output,SpecData,weather_data,CONSTANTS);
+            [Flux_angles,Irradiance_angles] = incoming_irradiance_BIF_TAN(Incoming_Irr_input,TOOLBOX_input,CELL_output,SpecData,weather_data);
             Irradiance_Year(hour_index,:,:,:) = Irradiance_angles;
             Photon_flux_Year(hour_index,:,:,:) = Flux_angles;
         end
@@ -243,59 +233,59 @@ disp('The irradiance has been calculated')
 
 
 if strcmp(type,'SHJ') || strcmp(type,'BIF')
-    I_abs = zeros(length(DCP),length(angles_GENPRO));
+    I_abs = zeros(length(DCP),N_angles);
     % The optimal voltage is calculated
-    V_opt1 = Vopt_calculator(wav,squeeze(sum(sum(Photon_flux_Year,4),2)),E_g,T_cell,Angle_emit);
+    V_opt1 = Vopt_calculator(wav,squeeze(sum(sum(Photon_flux_Year,4),3)),E_g,T_cell,Angle_emit);
 elseif strcmp(type,'Tan')
-    I_abs1 = zeros(length(DCP),length(angles_GENPRO));
-    I_abs2 = zeros(length(DCP),length(angles_GENPRO));
+    I_abs1 = zeros(length(DCP),N_angles);
+    I_abs2 = zeros(length(DCP),N_angles);
     % The optimal voltages are calculated
-    V_opt1 = Vopt_calculator(wav,squeeze(sum(sum(Photon_flux_Year,4),2)),E_g1,T_cell,Angle_emit);
-    V_opt2 = Vopt_calculator(wav,squeeze(sum(sum(Photon_flux_Year,4),2)),E_g2,T_cell,Angle_emit);
+    V_opt1 = Vopt_calculator(wav,squeeze(sum(sum(Photon_flux_Year,4),3)),E_g1,T_cell,Angle_emit);
+    V_opt2 = Vopt_calculator(wav,squeeze(sum(sum(Photon_flux_Year,4),3)),E_g2,T_cell,Angle_emit);
 elseif strcmp(type,'BIF-Tan')
-    I_abs1 = zeros(length(DCP),length(angles_GENPRO));
-    I_abs2 = zeros(length(DCP),length(angles_GENPRO));
+    I_abs1 = zeros(length(DCP),N_angles);
+    I_abs2 = zeros(length(DCP),N_angles);
     % The optimal voltages are calculated
-    V_opt1 = Vopt_calculator(wav,squeeze(sum(sum(Photon_flux_Year,4),2)),E_g1,T_cell,Angle_emit);
-    V_opt2 = Vopt_calculator(wav,squeeze(sum(sum(Photon_flux_Year,4),2)),E_g2,T_cell,Angle_emit);
+    V_opt1 = Vopt_calculator(wav,squeeze(sum(sum(Photon_flux_Year,4),3)),E_g1,T_cell,Angle_emit);
+    V_opt2 = Vopt_calculator(wav,squeeze(sum(sum(Photon_flux_Year,4),3)),E_g2,T_cell,Angle_emit);
 
     %Find the voltage over cell 2
-    Vth = CONSTANTS.k*T_cell/CONSTANTS.q;
+    Vth = TOOLBOX_input.constants.k*T_cell/TOOLBOX_input.constants.q;
     Iph1 = mean(Parameters1(:,:,1))';
     Rs1 = mean(Parameters1(:,:,2))';
     Rsh1 = mean(Parameters1(:,:,3))';
     n1 = mean(Parameters1(:,:,4))';
     I01 = mean(Parameters1(:,:,5))';
-    V_cell1 = Iph1.*Rsh1+I01.*Rsh1-I_mpp.*(Rs1+Rsh1)-n1.*Vth.*lambertw(Rsh1.*I01./(n1.*Vth).*exp(Rsh1./(n1.*Vth).*(Iph1+I01-I_mpp)));
+    V_cell1 = Iph1.*Rsh1+I01.*Rsh1-I_mpp.*(Rs1+Rsh1)-n1.*Vth.*lambertw_pvmd(Rsh1.*I01./(n1.*Vth).*exp(Rsh1./(n1.*Vth).*(Iph1+I01-I_mpp)));
     V_cell2 = V_mpp-MODULE_output.N*V_cell1;
     V_cell2(isnan(V_cell2)) = 0;
 end
 
 % The fundamental and optical losses are calculated per angle. First,
 % all values are initialised
-P_in = zeros(length(DCP),length(angles_GENPRO));
-P_term = zeros(length(DCP),length(angles_GENPRO));
-P_below = zeros(length(DCP),length(angles_GENPRO));
-P_carnot = zeros(length(DCP),length(angles_GENPRO));
-P_emission = zeros(length(DCP),length(angles_GENPRO));
-P_angle = zeros(length(DCP),length(angles_GENPRO));
-P_gain = zeros(length(DCP),length(angles_GENPRO));
-P_fund = zeros(length(DCP),length(angles_GENPRO));
-P_cell = zeros(length(DCP),length(angles_GENPRO));
-P_metal = zeros(length(DCP),length(angles_GENPRO));
-P_ref = zeros(length(DCP),length(angles_GENPRO));
-P_diffA = zeros(length(DCP),length(angles_GENPRO));
+P_in = zeros(length(DCP),N_angles);
+P_term = zeros(length(DCP),N_angles);
+P_below = zeros(length(DCP),N_angles);
+P_carnot = zeros(length(DCP),N_angles);
+P_emission = zeros(length(DCP),N_angles);
+P_angle = zeros(length(DCP),N_angles);
+P_gain = zeros(length(DCP),N_angles);
+P_fund = zeros(length(DCP),N_angles);
+P_cell = zeros(length(DCP),N_angles);
+P_metal = zeros(length(DCP),N_angles);
+P_ref = zeros(length(DCP),N_angles);
+P_diffA = zeros(length(DCP),N_angles);
 
 
 %For each angle, the optical and fundamental losses are calculated
-for i = 1:length(angles_GENPRO)
+for i = 1:N_angles
     AOI = angles_GENPRO(i);
     %input power
     if Bifacial == 0
-        P_in(:,i)=trapz(wav,squeeze(Irradiance_Year(:,i,:))')*Amod;
+        P_in(:,i)=trapz(wav,squeeze(Irradiance_Year(:,:,i))')*Amod;
     elseif Bifacial ==1
-        P_in_fr = trapz(wav,squeeze(Irradiance_Year(:,i,:,1))')*Amod;
-        P_in_rr = trapz(wav,squeeze(Irradiance_Year(:,i,:,2))')*Amod;
+        P_in_fr = trapz(wav,squeeze(Irradiance_Year(:,:,i,1))')'*Amod;
+        P_in_rr = trapz(wav,squeeze(Irradiance_Year(:,:,i,2))')'*Amod;
         P_in(:,i)= P_in_fr+P_in_rr;
     end
     % The optical parameters for a certain angle are calculated
@@ -312,37 +302,37 @@ for i = 1:length(angles_GENPRO)
     %Fundamental losses
     if strcmp(type,'SHJ')
         Fund_Losses_input.wav = wav;
-        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,i,:))';
-        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:))';
+        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,:,i));
+        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i));
         Fund_Losses_input.Angle_abs = Angle_abs;
         Fund_Losses_input.Angle_emit_Vopt = Angle_emit;
-        Fund_Losses_input.Angle_emit_emission = Angle_emit/length(angles_GENPRO);
+        Fund_Losses_input.Angle_emit_emission = Angle_emit/N_angles;
         Fund_Losses_input.A = A_angle;
         Fund_Losses_input.E_g = E_g;
-        Fund_Losses_input.I_mpp = I_mpp';
-        Fund_Losses_input.V_mpp = V_mpp';
-        Fund_Losses_input.T_cell = T_cell';
+        Fund_Losses_input.I_mpp = I_mpp;
+        Fund_Losses_input.V_mpp = V_mpp;
+        Fund_Losses_input.T_cell = T_cell;
         Fund_Losses_input.V_opt1 = V_opt1;
-        [P_term(:,i),P_below(:,i),P_emission(:,i),P_carnot(:,i),P_angle(:,i),P_gain(:,i)] = FundamentalLossesSingle(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output,CONSTANTS);
+        [P_term(:,i),P_below(:,i),P_emission(:,i),P_carnot(:,i),P_angle(:,i),P_gain(:,i)] = FundamentalLossesSingle(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
     elseif strcmp(type,'BIF')
         Fund_Losses_input.wav = wav;
-        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,i,:,1))';
-        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:,1))';
+        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,:,i,1));
+        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i,1));
         Fund_Losses_input.Angle_abs = Angle_abs;
         Fund_Losses_input.Angle_emit_Vopt = Angle_emit;
-        Fund_Losses_input.Angle_emit_emission = 2*pi/length(angles_GENPRO);
+        Fund_Losses_input.Angle_emit_emission = 2*pi/N_angles;
         Fund_Losses_input.A = A_angle(:,:,1);
         Fund_Losses_input.E_g = E_g;
-        Fund_Losses_input.I_mpp = I_mpp';
-        Fund_Losses_input.V_mpp = V_mpp';
-        Fund_Losses_input.T_cell = T_cell';
+        Fund_Losses_input.I_mpp = I_mpp;
+        Fund_Losses_input.V_mpp = V_mpp;
+        Fund_Losses_input.T_cell = T_cell;
         Fund_Losses_input.V_opt1 = V_opt1;
-        [P_term_fr,P_below_fr,P_emission_fr,P_carnot_fr,P_angle_fr,P_gain_fr] = FundamentalLossesSingle(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output,CONSTANTS);
+        [P_term_fr,P_below_fr,P_emission_fr,P_carnot_fr,P_angle_fr,P_gain_fr] = FundamentalLossesSingle(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 
-        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,i,:,2))';
-        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:,2))';
+        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,:,i,2));
+        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i,2));
         Fund_Losses_input.A = A_angle(:,:,2);
-        [P_term_rr,P_below_rr,P_emission_rr,P_carnot_rr,P_angle_rr,P_gain_rr] = FundamentalLossesSingle(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output,CONSTANTS);
+        [P_term_rr,P_below_rr,P_emission_rr,P_carnot_rr,P_angle_rr,P_gain_rr] = FundamentalLossesSingle(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 
         P_term(:,i) = P_term_fr+P_term_rr;
         P_below(:,i) = P_below_fr+P_below_rr;
@@ -354,48 +344,48 @@ for i = 1:length(angles_GENPRO)
         P_fund_rr = P_term_rr+P_below_rr+P_emission_rr+P_carnot_rr+P_angle_rr-P_gain_rr;
     elseif strcmp(type,'Tan')
         Fund_Losses_input.wav = wav;
-        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,i,:))';
-        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:))';
+        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,:,i));
+        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i));
         Fund_Losses_input.Angle_abs = Angle_abs;
         Fund_Losses_input.Angle_emit_Vopt = Angle_emit;
-        Fund_Losses_input.Angle_emit_emission = Angle_emit/length(angles_GENPRO);
+        Fund_Losses_input.Angle_emit_emission = Angle_emit/N_angles;
         Fund_Losses_input.A1 = A1_angle;
         Fund_Losses_input.A2 = A2_angle;
         Fund_Losses_input.E_g1 = E_g1;
         Fund_Losses_input.E_g2 = E_g2;
         Fund_Losses_input.Parameters1 = squeeze(mean(Parameters1));
-        Fund_Losses_input.I_mpp = I_mpp';
-        Fund_Losses_input.V_mpp = V_mpp';
-        Fund_Losses_input.T_cell = T_cell';
+        Fund_Losses_input.I_mpp = I_mpp;
+        Fund_Losses_input.V_mpp = V_mpp;
+        Fund_Losses_input.T_cell = T_cell;
         Fund_Losses_input.V_opt1 = V_opt1;
         Fund_Losses_input.V_opt2 = V_opt2;
-        [P_term(:,i),P_below(:,i),P_emission(:,i),P_carnot(:,i),P_angle(:,i),P_gain(:,i)] = FundamentalLossesTandem(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output,CONSTANTS);
+        [P_term(:,i),P_below(:,i),P_emission(:,i),P_carnot(:,i),P_angle(:,i),P_gain(:,i)] = FundamentalLossesTandem(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
     elseif strcmp(type,'BIF-Tan')
         Fund_Losses_input.wav = wav;
-        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,i,:,1))';
-        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:,1))';
+        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,:,i,1));
+        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i,1));
         Fund_Losses_input.Angle_abs = Angle_abs;
         Fund_Losses_input.Angle_emit_Vopt = Angle_emit;
-        Fund_Losses_input.Angle_emit_emission = 2*pi/length(angles_GENPRO);
+        Fund_Losses_input.Angle_emit_emission = 2*pi/N_angles;
         Fund_Losses_input.A1 = A1_angle(:,:,1);
         Fund_Losses_input.A2 = A2_angle(:,:,1);
         Fund_Losses_input.E_g1 = E_g1;
         Fund_Losses_input.E_g2 = E_g2;
         Fund_Losses_input.Parameters1 = squeeze(mean(Parameters1));
-        Fund_Losses_input.I_mpp = I_mpp';
-        Fund_Losses_input.V_mpp = V_mpp';
-        Fund_Losses_input.T_cell = T_cell';
+        Fund_Losses_input.I_mpp = I_mpp;
+        Fund_Losses_input.V_mpp = V_mpp;
+        Fund_Losses_input.T_cell = T_cell;
         Fund_Losses_input.V_opt1 = V_opt1;
         Fund_Losses_input.V_opt2 = V_opt2;
-        [P_term_fr,P_below_fr,P_emission_fr,P_carnot_fr,P_angle_fr,P_gain_fr] = FundamentalLossesTandem(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output,CONSTANTS);
+        [P_term_fr,P_below_fr,P_emission_fr,P_carnot_fr,P_angle_fr,P_gain_fr] = FundamentalLossesTandem(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 
-        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,i,:,2))';
-        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:,2))';
+        Fund_Losses_input.Irr_spec = squeeze(Irradiance_Year(:,:,i,2));
+        Fund_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i,2));
         Fund_Losses_input.A = A2_angle(:,:,2);
-        Fund_Losses_input.V_mpp = V_cell2';
+        Fund_Losses_input.V_mpp = V_cell2;
         Fund_Losses_input.V_opt1 = V_opt2;
         Fund_Losses_input.E_g = E_g2;
-        [P_term_rr,P_below_rr,P_emission_rr,P_carnot_rr,P_angle_rr,P_gain_rr] = FundamentalLossesSingle(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output,CONSTANTS);
+        [P_term_rr,P_below_rr,P_emission_rr,P_carnot_rr,P_angle_rr,P_gain_rr] = FundamentalLossesSingle(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 
         P_term(:,i) = P_term_fr+P_term_rr;
         P_below(:,i) = P_below_fr+P_below_rr;
@@ -412,41 +402,41 @@ for i = 1:length(angles_GENPRO)
         Opt_Losses_input.P_in = P_in(:,i);
         Opt_Losses_input.P_fund = P_fund(:,i);
         Opt_Losses_input.wav = wav;
-        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:))';
+        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i));
         Opt_Losses_input.R = R_angle;
         Opt_Losses_input.A = A_angle;
         Opt_Losses_input.A_diff = A_diff_angle;
         Opt_Losses_input.E_g = E_g;
         Opt_Losses_input.V_opt1 = V_opt1;
-        Opt_Losses_input.Angle_emit = Angle_emit/length(angles_GENPRO);
-        Opt_Losses_input.V_mpp = V_mpp';
-        Opt_Losses_input.I_mpp = I_mpp';
-        Opt_Losses_input.T_cell = T_cell';
-        [P_cell(:,i),P_metal(:,i),P_ref(:,i),P_diffA(:,i),I_abs(:,i)] = OpticalLossesSingle(Opt_Losses_input,TOOLBOX_input,MODULE_output,CELL_output,CONSTANTS);
+        Opt_Losses_input.Angle_emit = Angle_emit/N_angles;
+        Opt_Losses_input.V_mpp = V_mpp;
+        Opt_Losses_input.I_mpp = I_mpp;
+        Opt_Losses_input.T_cell = T_cell;
+        [P_cell(:,i),P_metal(:,i),P_ref(:,i),P_diffA(:,i),I_abs(:,i)] = OpticalLossesSingle(Opt_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 
     elseif strcmp(type,'BIF')
         Opt_Losses_input.P_in = P_in_fr;
         Opt_Losses_input.P_fund = P_fund_fr;
         Opt_Losses_input.wav = wav;
-        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:,1))';
+        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i,1));
         Opt_Losses_input.R = R_angle(:,:,1);
         Opt_Losses_input.A = A_angle(:,:,1);
         Opt_Losses_input.A_diff = A_diff_angle(:,:,1);
         Opt_Losses_input.E_g = E_g;
         Opt_Losses_input.V_opt1 = V_opt1;
-        Opt_Losses_input.Angle_emit = 2*pi/length(angles_GENPRO);
-        Opt_Losses_input.V_mpp = V_mpp';
-        Opt_Losses_input.I_mpp = I_mpp';
-        Opt_Losses_input.T_cell = T_cell';
-        [P_cell_fr,P_metal_fr,P_ref_fr,P_diffA_fr,I_abs_fr] = OpticalLossesSingle(Opt_Losses_input,TOOLBOX_input,MODULE_output,CELL_output,CONSTANTS);
+        Opt_Losses_input.Angle_emit = 2*pi/N_angles;
+        Opt_Losses_input.V_mpp = V_mpp;
+        Opt_Losses_input.I_mpp = I_mpp;
+        Opt_Losses_input.T_cell = T_cell;
+        [P_cell_fr,P_metal_fr,P_ref_fr,P_diffA_fr,I_abs_fr] = OpticalLossesSingle(Opt_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 
         Opt_Losses_input.P_in = P_in_rr;
         Opt_Losses_input.P_fund = P_fund_rr;
-        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:,2))';
+        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i,2));
         Opt_Losses_input.R = R_angle(:,:,2);
         Opt_Losses_input.A = A_angle(:,:,2);
         Opt_Losses_input.A_diff = A_diff_angle(:,:,2);
-        [P_cell_rr,P_metal_rr,P_ref_rr,P_diffA_rr,I_abs_rr] = OpticalLossesSingle(Opt_Losses_input,TOOLBOX_input,MODULE_output,CELL_output,CONSTANTS);
+        [P_cell_rr,P_metal_rr,P_ref_rr,P_diffA_rr,I_abs_rr] = OpticalLossesSingle(Opt_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 
         P_cell(:,i) = P_cell_fr + P_cell_rr;
         P_metal(:,i) = P_metal_fr + P_metal_rr;
@@ -457,7 +447,7 @@ for i = 1:length(angles_GENPRO)
         Opt_Losses_input.P_in = P_in(:,i);
         Opt_Losses_input.P_fund = P_fund(:,i);
         Opt_Losses_input.wav = wav;
-        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:))';
+        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i));
         Opt_Losses_input.R = R_angle;
         Opt_Losses_input.A1 = A1_angle;
         Opt_Losses_input.A2 = A2_angle;
@@ -466,17 +456,17 @@ for i = 1:length(angles_GENPRO)
         Opt_Losses_input.E_g2 = E_g2;
         Opt_Losses_input.V_opt1 = V_opt1;
         Opt_Losses_input.V_opt2 = V_opt2;
-        Opt_Losses_input.Angle_emit = Angle_emit/length(angles_GENPRO);
+        Opt_Losses_input.Angle_emit = Angle_emit/N_angles;
         Opt_Losses_input.Parameters1 = squeeze(mean(Parameters1));
-        Opt_Losses_input.V_mpp = V_mpp';
-        Opt_Losses_input.I_mpp = I_mpp';
-        Opt_Losses_input.T_cell = T_cell';
-        [P_cell(:,i),P_metal(:,i),P_ref(:,i),P_diffA(:,i),I_abs1(:,i),I_abs2(:,i)] = OpticalLossesTandem(Opt_Losses_input,TOOLBOX_input,MODULE_output,CELL_output,CONSTANTS);
+        Opt_Losses_input.V_mpp = V_mpp;
+        Opt_Losses_input.I_mpp = I_mpp;
+        Opt_Losses_input.T_cell = T_cell;
+        [P_cell(:,i),P_metal(:,i),P_ref(:,i),P_diffA(:,i),I_abs1(:,i),I_abs2(:,i)] = OpticalLossesTandem(Opt_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
     elseif strcmp(type,'BIF-Tan')
         Opt_Losses_input.P_in = P_in_fr;
         Opt_Losses_input.P_fund = P_fund_fr;
         Opt_Losses_input.wav = wav;
-        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:,1))';
+        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i,1));
         Opt_Losses_input.R = R_angle(:,:,1);
         Opt_Losses_input.A1 = A1_angle(:,:,1);
         Opt_Losses_input.A2 = A2_angle(:,:,1);
@@ -485,23 +475,23 @@ for i = 1:length(angles_GENPRO)
         Opt_Losses_input.E_g2 = E_g2;
         Opt_Losses_input.V_opt1 = V_opt1;
         Opt_Losses_input.V_opt2 = V_opt2;
-        Opt_Losses_input.Angle_emit = 2*pi/length(angles_GENPRO);
+        Opt_Losses_input.Angle_emit = 2*pi/N_angles;
         Opt_Losses_input.Parameters1 = squeeze(mean(Parameters1));
-        Opt_Losses_input.V_mpp = V_mpp';
-        Opt_Losses_input.I_mpp = I_mpp';
-        Opt_Losses_input.T_cell = T_cell';
-        [P_cell_fr,P_metal_fr,P_ref_fr,P_diffA_fr,I_abs1_fr,I_abs2_fr] = OpticalLossesTandem(Opt_Losses_input,TOOLBOX_input,MODULE_output,CELL_output,CONSTANTS);
+        Opt_Losses_input.V_mpp = V_mpp;
+        Opt_Losses_input.I_mpp = I_mpp;
+        Opt_Losses_input.T_cell = T_cell;
+        [P_cell_fr,P_metal_fr,P_ref_fr,P_diffA_fr,I_abs1_fr,I_abs2_fr] = OpticalLossesTandem(Opt_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 
         Opt_Losses_input.P_in = P_in_rr;
         Opt_Losses_input.P_fund = P_fund_rr;
-        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,i,:,2))';
+        Opt_Losses_input.photon_spec = squeeze(Photon_flux_Year(:,:,i,2));
         Opt_Losses_input.E_g = E_g2;
         Opt_Losses_input.V_opt1 = V_opt2;
-        Opt_Losses_input.V_mpp = V_cell2';
+        Opt_Losses_input.V_mpp = V_cell2;
         Opt_Losses_input.R = R_angle(:,:,2);
         Opt_Losses_input.A = A2_angle(:,:,2);
         Opt_Losses_input.A_diff = A_diff_angle(:,:,2);
-        [P_cell_rr,P_metal_rr,P_ref_rr,P_diffA_rr,I_abs2_rr] = OpticalLossesSingle(Opt_Losses_input,TOOLBOX_input,MODULE_output,CELL_output,CONSTANTS);
+        [P_cell_rr,P_metal_rr,P_ref_rr,P_diffA_rr,I_abs2_rr] = OpticalLossesSingle(Opt_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 
         P_cell(:,i) = P_cell_fr + P_cell_rr;
         P_metal(:,i) = P_metal_fr + P_metal_rr;
@@ -526,14 +516,14 @@ P_diffA = sum(P_diffA,2);
 if strcmp(type,'SHJ') || strcmp(type,'BIF')
     I_abs = sum(I_abs,2);
     IV_curvename = TOOLBOX_input.electric.IVtype;
-    [P_diffA, I_abs] = Correct_PdiffA(TOOLBOX_input,MODULE_output,P_diffA,I_abs,T_cell,V_opt1',IV_curvename);
+    [P_diffA, I_abs] = Correct_PdiffA(TOOLBOX_input,MODULE_output,P_diffA,I_abs,T_cell,V_opt1,IV_curvename);
 elseif strcmp(type,'Tan')|| strcmp(type,'BIF-Tan')    
     I_abs1 = sum(I_abs1,2);
     I_abs2 = sum(I_abs2,2);
     IV_curvename_top = TOOLBOX_input.electric.IVtypeTop;
     IV_curvename_bot = TOOLBOX_input.electric.IVtypeBot;
-    [P_diffA, I_abs1] = Correct_PdiffA(TOOLBOX_input,MODULE_output,P_diffA,I_abs1,T_cell,V_opt1',IV_curvename_top);
-    [P_diffA, I_abs2] = Correct_PdiffA(TOOLBOX_input,MODULE_output,P_diffA,I_abs2,T_cell,V_opt2',IV_curvename_bot);
+    [P_diffA, I_abs1] = Correct_PdiffA(TOOLBOX_input,MODULE_output,P_diffA,I_abs1,T_cell,V_opt1,IV_curvename_top);
+    [P_diffA, I_abs2] = Correct_PdiffA(TOOLBOX_input,MODULE_output,P_diffA,I_abs2,T_cell,V_opt2,IV_curvename_bot);
 end
 
 
@@ -544,7 +534,7 @@ if strcmp(type,'SHJ') || strcmp(type,'BIF')
     Elec_Losses_input.V_opt1 = V_opt1;
     Elec_Losses_input.Parameters = Parameters;
     Elec_Losses_input.T_cell = T_cell;
-    [P_series,P_shunt,P_NRRI,P_NRRV] = ElectricLossesSingle_avg(Elec_Losses_input,MODULE_output);
+    [P_series,P_shunt,P_NRRI,P_NRRV] = ElectricLossesSingle_avg(Elec_Losses_input,TOOLBOX_input,MODULE_output);
     PowerRatio = zeros(size(DCP));
 elseif strcmp(type,'Tan')|| strcmp(type,'BIF-Tan')
     Elec_Losses_input.I_abs1 = I_abs1;
@@ -554,7 +544,7 @@ elseif strcmp(type,'Tan')|| strcmp(type,'BIF-Tan')
     Elec_Losses_input.Parameters1 = Parameters1;
     Elec_Losses_input.Parameters2 = Parameters2;
     Elec_Losses_input.T_cell = T_cell;
-    [P_series,P_shunt,P_NRRI,P_NRRV,PowerRatio] = ElectricLossesTandem_avg(Elec_Losses_input,TOOLBOX_input,MODULE_output,CONSTANTS);
+    [P_series,P_shunt,P_NRRI,P_NRRV,PowerRatio] = ElectricLossesTandem_avg(Elec_Losses_input,TOOLBOX_input,MODULE_output);
 
 end
 
@@ -567,12 +557,10 @@ if strcmp(type,'SHJ') || strcmp(type,'BIF')
     Sys_Losses_input.Parameters = Parameters;
     Sys_Losses_input.T_cell = T_cell;
     Sys_Losses_input.Pdc = DCP;
-    if (isfield(TOOLBOX_input, 'runACConversionPart')==1) %To check whether the AC simulation is performed
-        if TOOLBOX_input.runACConversionPart == 1
-            Sys_Losses_input.Pac = CONVERSION_Pac;
-        end
+    if isstruct(CONVERSION_output)
+        Sys_Losses_input.Pac = CONVERSION_output.Pac;
     end
-    [P_con,P_mismatch,P_cable,P_inv] = SystemLossesSingle(Sys_Losses_input,TOOLBOX_input,ELECTRIC_output,MODULE_output);
+    [P_con,P_mismatch,P_cable,P_inv] = SystemLossesSingle(Sys_Losses_input,TOOLBOX_input,MODULE_output,CONVERSION_output);
 elseif strcmp(type,'Tan')|| strcmp(type,'BIF-Tan')
     if Terminals == 2 || Terminals ==3
         Sys_Losses_input.I_mpp = I_mpp;
@@ -583,12 +571,13 @@ elseif strcmp(type,'Tan')|| strcmp(type,'BIF-Tan')
         Sys_Losses_input.Parameters2 = Parameters2;
         Sys_Losses_input.T_cell = T_cell;
         Sys_Losses_input.Pdc = DCP;
-        if TOOLBOX_input.runACConversionPart == 1
-            Sys_Losses_input.Pac = CONVERSION_Pac;
+        if isstruct(CONVERSION_output)
+            Sys_Losses_input.Pac = CONVERSION_output.Pac;
         end
-        [P_con,P_mismatch,P_cable,P_inv] = SystemLossesTandem2T(Sys_Losses_input,TOOLBOX_input,ELECTRIC_output,MODULE_output);
+        [P_con,P_mismatch,P_cable,P_inv] = SystemLossesTandem2T(Sys_Losses_input,TOOLBOX_input,MODULE_output,CONVERSION_output);
     end
 end
+
 Index_zero = find(~DCP);
 P_term(Index_zero) = 0;
 P_below(Index_zero) = 0;
@@ -611,8 +600,8 @@ P_inv(Index_zero) = 0;
 P_in(Index_zero) = 0;
 PowerRatio(Index_zero) = 0;
 P_out_DC = DCP.*[PowerRatio, (1-PowerRatio)];
-if (isfield(TOOLBOX_input, 'runACConversionPart')==1)&& TOOLBOX_input.runACConversionPart == 1 %To check whether the AC simulation is performed
-    P_out_AC = max(CONVERSION_Pac.*[PowerRatio, (1-PowerRatio)],0);
+if isstruct(CONVERSION_output) %To check whether the AC simulation is performed
+    P_out_AC = max(CONVERSION_output.Pac.*[PowerRatio, (1-PowerRatio)],0);
 end
 
 
@@ -626,7 +615,7 @@ Percentage = 100*Power/sum(P_in);
 disp(table(Components,Power,Percentage))
 
 
-if (isfield(TOOLBOX_input, 'runACConversionPart')==1 && TOOLBOX_input.runACConversionPart == 1) %To check whether the AC simulation is performed
+if isstruct(CONVERSION_output) %To check whether the AC simulation is performed
     disp('AC losses')
     panels = TOOLBOX_input.Conversion.Parallel_Modules*TOOLBOX_input.Conversion.Series_Modules;
     Power = panels*[sum(P_term);sum(P_below);sum(P_emission);sum(P_carnot);sum(P_angle);-1*sum(P_gain);sum(P_cell);sum(P_metal);sum(P_ref);sum(P_diffA);sum(P_NRRI);sum(P_shunt);sum(P_series);sum(P_con);sum(P_NRRV);sum(P_mismatch)];
@@ -659,7 +648,7 @@ Losses_Operating.P_cable_full = P_cable;
 Losses_Operating.P_inv_full = P_inv;
 Losses_Operating.P_in_full = P_in;
 Losses_Operating.P_out_DC_full = P_out_DC;
-if (isfield(TOOLBOX_input, 'runACConversionPart')==1 && TOOLBOX_input.runACConversionPart == 1)
+if isstruct(CONVERSION_output)
     Losses_Operating.P_out_AC_full = P_out_AC;
 end
 
@@ -688,4 +677,14 @@ if TOOLBOX_input.LossAnalysis.plotFigures == 1
             Plot_type = 3;
         elseif strcmp(type,'Tan') || strcmp(type,'BIF-Tan') %DC simulation for tandem cell
             Plot_Components = ["DC power bottom cell";"DC power top cell";"Mismatch losses";"Cell interconnection";'Recombination I';'Recombination V';"Shunt resistance";"Series resistance";"Parasitic absorption";"Reflection";"Metal shading";'Cell spacing';"Non-ideality effect";'Angle mismatch';'Carnot losses';'Emission losses';'Below bandgap';'Thermalization'];
-            Plot_Power = 100*[sum(P_out_DC(:,2));sum(P_out_DC(:,1));sum(P_mismatch);sum(P_con);sum(P_NRRI);sum(P_NRRV);sum(P_shunt);sum(P_series);sum(P_diffA);sum(P_ref);sum(P_metal);sum(P_cell);-1*sum(P_gain
+            Plot_Power = 100*[sum(P_out_DC(:,2));sum(P_out_DC(:,1));sum(P_mismatch);sum(P_con);sum(P_NRRI);sum(P_NRRV);sum(P_shunt);sum(P_series);sum(P_diffA);sum(P_ref);sum(P_metal);sum(P_cell);-1*sum(P_gain);sum(P_angle);sum(P_carnot);sum(P_emission);sum(P_below);sum(P_term)]/sum(P_in);
+            Plot_Categories = ["Fundamental losses:", "Optical losses:", "Electrical losses:","System losses:","Output Power"];
+            Plot_Power_Categories = 100*[sum(P_term)+sum(P_below)+sum(P_angle)+sum(P_carnot)+sum(P_emission)-sum(P_gain);sum(P_cell)+sum(P_metal)+sum(P_ref)+sum(P_diffA);sum(P_NRRV)+sum(P_NRRI)+sum(P_series)+sum(P_shunt);sum(P_mismatch)+sum(P_con);sum(sum(P_out_DC))]/sum(P_in);
+            Plot_type = 4;
+        end
+    end
+    title_plot = 'Operating conditions';
+    plot_losses(Plot_Components,Plot_Power,Plot_Categories,Plot_Power_Categories,Plot_type,title_plot);
+end
+end
+

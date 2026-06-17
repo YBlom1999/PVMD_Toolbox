@@ -1,4 +1,4 @@
-function [Tcell] = cellTempCalcFaiman(T_amb,WS,Gm,thermal)
+function [T_cell] = cellTempCalcFaiman(T_amb,WS,Gm,settings)
 %cellTempCalcFaiman Calculates the temperature of the cell with the
 %Faiman model.
 % This function calculates the temperature of the cell with the
@@ -12,23 +12,23 @@ function [Tcell] = cellTempCalcFaiman(T_amb,WS,Gm,thermal)
 %   Windspeed
 % Gm : double
 %   incoming irradiance in the module
-% thermal : struct
+% settings : struct
 %   the input of the thermal model
 %
 % Returns
 % -------
-% Tcell : double
+% T_cell : double
 %   The cell temperature
 %
 % Developed by A. Calcabrini
 % Implemented in the Toolbox by Y. Blom
 
-U0 = thermal.U0;
-U1 = thermal.U1;
-alpha = thermal.alpha;
-cell_eff = thermal.cell_eff;
+U0 = settings.U0;
+U1 = settings.U1;
+alpha = settings.alpha;
+cell_eff = settings.cell_eff;
 
-Tcell = T_amb + Gm./(U0+U1*WS)*alpha*(1-cell_eff);
+T_cell = T_amb + Gm./(U0+U1*WS)*alpha*(1-cell_eff);
 
 
 end

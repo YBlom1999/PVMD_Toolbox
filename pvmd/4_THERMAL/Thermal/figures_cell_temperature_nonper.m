@@ -1,5 +1,4 @@
-function figures_cell_temperature_nonper(irradiance,cell_temp,ambient_temp,...
-    WEATHER_output, TOOLBOX_input)
+function figures_cell_temperature_nonper(irradiance,cell_temp,ambient_temp,TOOLBOX_input)
 %FIGURES_CELL_TEMPERATURE_NONPER Generate cell temperature figures
 % Show the results of the thermal module in case of non-periodic simulations.
 %

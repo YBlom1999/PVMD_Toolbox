@@ -1,4 +1,4 @@
-function [ELECTRIC_output, TOOLBOX_input] = ELECTRIC_main(TOOLBOX_input,CELL_output,MODULE_output,WEATHER_output,THERMAL_output)
+function [ELECTRIC_output] = ELECTRIC_main(TOOLBOX_input,CELL_output,MODULE_output,WEATHER_output,THERMAL_output)
 %ELECTRIC_MAIN Main file for the Electrical module in the PVMD toolbox
 %
 % This function calculates the module IV curve based on the generated
@@ -21,8 +21,6 @@ function [ELECTRIC_output, TOOLBOX_input] = ELECTRIC_main(TOOLBOX_input,CELL_out
 % -------
 % THERMAL_output : struct
 %   Simulation results of the electric module
-% TOOLBOX_input : struct
-%   Update of TOOLBOX_input by adding simulation parameters of electric module
 %
 % Developed by by Abdallah Nour El Din and Malte Vogt
 
@@ -31,44 +29,7 @@ function [ELECTRIC_output, TOOLBOX_input] = ELECTRIC_main(TOOLBOX_input,CELL_out
 %The code was developed by Abdallah Nour El Din and Malte Vogt
 
 
-
 %load input values
-addpath(genpath("Model"));
-TOOLBOX_input.runElectricPart = true;
-
-
-if TOOLBOX_input.script
-    Rsw = nan;
-    algo = nan;
-    nc_r = nan;
-end
-%including warnings for large data-sets
-days_of_simulation = WEATHER_output.Period;
-
-start_day = days_of_simulation(1);
-start_month = days_of_simulation(2);
-end_day = days_of_simulation(3);
-end_month = days_of_simulation(4);
-
-date1 = datetime(2005,start_month,start_day); %starting day of simulations
-date2 = datetime(2005,end_month,end_day); %ending day of simulations
-dur = hours(date2 - date1); %duration in hours
-
-if TOOLBOX_input.electric.IncludeDissapatingHeat
-    N_iter = TOOLBOX_input.electric.N_iter;
-else
-    N_iter = 1;
-end
-
-%keeping 31 as benchmark to describe small simulations
-%Any simulation longer than 1 month/31 days is considered to be large
-if ~TOOLBOX_input.runPeriodic
-    if dur > 744 %if dur > number of hours in a month with 31 days
-        warning('Simulation time will be too large for Datasheet Values!!!');
-        disp('Recommended to proceed with Model Cell Values for DC Electrical Simulations');
-    end
-end
-
 TYPE=CELL_output.TYPE;
 SUBMOD_IND = CELL_output.SUBMOD_IND;
 N_submod = max(SUBMOD_IND);
@@ -90,7 +51,7 @@ if TOOLBOX_input.runPeriodic
         end
     end
 else %non-periodic simulation
-    N_panels = length(MODULE_output.Panels);
+    N_panels = TOOLBOX_input.Scene.N_panels;
     Acell=MODULE_output.Panels(1).Acell;
     numCells=MODULE_output.Panels(1).Ncells;
     Irr = cell(1,N_panels);
@@ -108,10 +69,15 @@ else %non-periodic simulation
     end
 end
 
-[TOOLBOX_input] = USR_OPT_ELECTRIC_main(TOOLBOX_input,TYPE); %running the script to obtain user input
-Mod_type = TOOLBOX_input.electric.TYPE;
+Mod_type = TOOLBOX_input.electric.ModuleType;
 TrackerType = TOOLBOX_input.electric.MPPTrackerType;
 minVoltage = TOOLBOX_input.electric.minVoltage;
+
+if TOOLBOX_input.electric.IncludeDissapatingHeat
+    N_iter = TOOLBOX_input.electric.N_iter;
+else
+    N_iter = 1;
+end
 
 % Consider Metalization
 if(TOOLBOX_input.electric.runMetalization)
@@ -144,27 +110,26 @@ for SubMod_i = 1:N_submod
 end
 
 for iter = 1:N_iter
+
     disp('Calculating IV curves for the Modules. This may take a few minutes...');
     % Determine Module IV curve
 
     if TOOLBOX_input.runPeriodic
-        Losses = nan;
         if strcmp(TYPE,'Tan') || strcmp(TYPE,'BIF-Tan')%Tandem modules need a different script
-            [V_module,I,Parameters_1, Parameters_2] = TandemModule(TOOLBOX_input,numCells, Acell,T_,J_,J_STC,CELL_output.SUBMOD_IND,Losses);
-            [V_module_STC,I_STC,Parameters_STC_1, Parameters_STC_2] = TandemModule(TOOLBOX_input,numCells, Acell,T_STC_cells,J_STC_cells,J_STC,CELL_output.SUBMOD_IND,Losses);
+            [V_module,I,Parameters_1, Parameters_2] = TandemModule(TOOLBOX_input,numCells, Acell,T_,J_,Irr_STC_cells{1},CELL_output.SUBMOD_IND);
+            [V_module_STC,I_STC,Parameters_STC_1, Parameters_STC_2] = TandemModule(TOOLBOX_input,numCells, Acell,T_STC_cells,J_STC_cells,Irr_STC_cells{1},CELL_output.SUBMOD_IND);
             reconfig_setting = nan;
         elseif strcmp(TYPE,'3Tan') || strcmp(TYPE,'BIF-3Tan')
-            [V_module,I,Parameters_1, Parameters_2, Parameters_3] = TripleTandemModule(TOOLBOX_input,numCells, Acell,T_,J_,J_STC,CELL_output.SUBMOD_IND,Losses);
-            [V_module_STC,I_STC,Parameters_STC_1, Parameters_STC_2, Parameters_STC_3] = TripleTandemModule(TOOLBOX_input,numCells, Acell,T_STC_cells,J_STC_cells,J_STC,CELL_output.SUBMOD_IND,Losses);
+            [V_module,I,Parameters_1, Parameters_2, Parameters_3] = TripleTandemModule(TOOLBOX_input,numCells, Acell,T_,J_,Irr_STC_cells,CELL_output.SUBMOD_IND);
+            [V_module_STC,I_STC,Parameters_STC_1, Parameters_STC_2, Parameters_STC_3] = TripleTandemModule(TOOLBOX_input,numCells, Acell,T_STC_cells,J_STC_cells,Irr_STC_cells,CELL_output.SUBMOD_IND);
             reconfig_setting = nan;
         else
-            [V_module,I,Parameters_1,reconfig_setting] = StandardModule(TOOLBOX_input,numCells, Acell,T_{1},J_{1},J_STC,Irr{1},Losses);
+            [V_module,I,Parameters_1,reconfig_setting,ind_Diode] = StandardModule(TOOLBOX_input,numCells, Acell,T_{1},J_{1},J_STC,Irr{1});
             Parameters_2 = 0;
-            [V_module_STC,I_STC,Parameters_STC_1,~] = StandardModule(TOOLBOX_input,numCells, Acell,T_STC_cells{1},J_STC_cells{1},J_STC,Irr_STC_cells{1});
+            [V_module_STC,I_STC,Parameters_STC_1,~,~] = StandardModule(TOOLBOX_input,numCells, Acell,T_STC_cells{1},J_STC_cells{1},J_STC,Irr_STC_cells{1});
             Parameters_STC_2 =0;
         end
     else %non-periodic simulations
-        N_panels = TOOLBOX_input.Scene.N_panels;
         reconfig_setting = cell(N_panels,1);
         V_module = cell(N_panels,1);
         ind_Diode = cell(N_panels,1);
@@ -177,24 +142,14 @@ for iter = 1:N_iter
         Parameters_STC_2 = cell(N_panels,1);
         if strcmp(TYPE,'Tan') || strcmp(TYPE,'BIF-Tan')%for tandem modules
             for i = 1:N_panels
-                temp = T{i}(ind1:ind2,:);
-                J1 = J_top{i}(:,:,ind1:ind2);
-                J2 = J_bottom{i}(:,:,ind1:ind2);
-                J_new_top = converttoELECTRICformat(J1);
-                J_new_bottom = converttoELECTRICformat(J2);
-                J_tan(:,:,1) = J_new_top{i};
-                J_tan(:,:,2) = J_new_bottom{i};
-                [V_module{i},I{i}] =...
-                    TandemModule(numCells,Acell,temp,J_tan);
-                [V_module_STC{i},I_STC{i}] = ...
-                    TandemModule(numCells, Acell,T_STC_cells,J_STC_cells);
+                [V_module{i},I{i},Parameters_1{i},reconfig_setting{i},ind_Diode{i}] = TandemModule(TOOLBOX_input,numCells, Acell,T_(i),J_(i),Irr_STC_cells{1},CELL_output.SUBMOD_IND);
+                [V_module_STC{i},I_STC{i},Parameters_STC_1{i},~,~] = TandemModule(TOOLBOX_input,numCells, Acell,T_STC_cells,J_STC_cells,Irr_STC_cells{1},CELL_output.SUBMOD_IND);
             end
         else
             for i = 1:N_panels
-                Losses = nan;
-                [V_module{i},I{i},Parameters_1{i},reconfig_setting{i},ind_Diode{i}] = StandardModule(TOOLBOX_input,numCells,Acell,T_{i},J_{i},J_STC,Irr{i},Losses);
+                [V_module{i},I{i},Parameters_1{i},reconfig_setting{i},ind_Diode{i}] = StandardModule(TOOLBOX_input,numCells,Acell,T_{i},J_{i},J_STC,Irr{i});
                 Parameters_2{i} = 0;
-                [V_module_STC{i},I_STC{i},Parameters_STC_1{i},~,~] = StandardModule(TOOLBOX_input,numCells, Acell,T_STC_cells{1},J_STC_cells{1},J_STC,Irr_STC_cells{1},Losses);
+                [V_module_STC{i},I_STC{i},Parameters_STC_1{i},~,~] = StandardModule(TOOLBOX_input,numCells, Acell,T_STC_cells{1},J_STC_cells{1},J_STC,Irr_STC_cells{1});
                 Parameters_STC_2{i} = 0;
             end
         end
@@ -204,9 +159,9 @@ for iter = 1:N_iter
     % Find MPP,Isc,Voc
 
     if TOOLBOX_input.runPeriodic
-        time=length(THERMAL_output.T{1}(:,1));
+        time=size(THERMAL_output.T{1}(:,1),1);
         [Pmpp, Impp, Vmpp, Isc, Voc]=CreatingModuleDCOutput(V_module,I,time,Mod_type,TrackerType,minVoltage);
-        [P_STC, Impp_STC, Vmpp_STC, Isc_STC, Voc_STC]=CreatingModuleDCOutput(V_module_STC, I_STC,1,Mod_type,TrackerType,0);
+        [P_STC, Impp_STC, Vmpp_STC, Isc_STC, Voc_STC]=CreatingModuleDCOutput(V_module_STC, I_STC,1,Mod_type,TrackerType,minVoltage);
         ModuleEnergyYield=sum(Pmpp);
     else %non-periodic simulations
         Pmpp = cell(N_panels,1);
@@ -220,11 +175,10 @@ for iter = 1:N_iter
         Isc_STC = cell(N_panels,1);
         Voc_STC = cell(N_panels,1);
         ModuleEnergyYield = cell(N_panels,1);
-
         for i = 1:N_panels
             time = size(T_{i},1);
             [Pmpp{i}, Impp{i},Vmpp{i}, Isc{i}, Voc{i}]=CreatingModuleDCOutput(V_module{i}, I{i},time,Mod_type,TrackerType,minVoltage);
-            [P_STC{i}, Impp_STC{i}, Vmpp_STC{i},Isc_STC{i}, Voc_STC{i}]=CreatingModuleDCOutput(V_module_STC{i}, I_STC{i},1,Mod_type,TrackerType,0);
+            [P_STC{i}, Impp_STC{i}, Vmpp_STC{i},Isc_STC{i}, Voc_STC{i}]=CreatingModuleDCOutput(V_module_STC{i}, I_STC{i},1,Mod_type,TrackerType,minVoltage);
             ModuleEnergyYield{i}=sum(Pmpp{i});
         end
         if TOOLBOX_input.electric.ConnectModules
@@ -232,13 +186,13 @@ for iter = 1:N_iter
             N_strings = length(TOOLBOX_input.electric.Mod_Con);
             for str_i = 1:N_strings
                 Mod_sel = TOOLBOX_input.electric.Mod_Con{str_i};
-                Imax = max(max(cell2mat(I(Mod_sel))));
+                Imax = max(cellfun(@max,I(Mod_sel)));
                 if isfield(TOOLBOX_input.electric,'TaylorParam')
                     I_str=0:(Imax/500):TOOLBOX_input.electric.TaylorParam.I0max;
                 else
                     I_str=0:(Imax/500):Imax;
                 end
-                V_str = zeros(size(V_module{1}));
+                V_str = zeros(time,length(I_str));
 
                 %Add the voltages of all modules in the string
                 for mod_i = Mod_sel
@@ -249,12 +203,11 @@ for iter = 1:N_iter
                         V_str = V_str + V_additional';
                     end
                 end
-                time = size(T_{1},1);
-                [Pmpp_str, Impp_str,Vmpp_str, ~, ~]=CreatingModuleDCOutput(V_str, I_str,time,Mod_type,TrackerType,minVoltage);
-
+                [~, Impp_str,~, ~, ~]=CreatingModuleDCOutput(V_str, I_str,time,Mod_type,TrackerType,minVoltage);
+            
                 %Update the Impp, Pmpp, and Vmpp of the modules in the string
-                for mod_i = Mod_sel
-                    Impp{mod_i} = Impp_str;
+                for mod_i = Mod_sel 
+                    Impp{mod_i} = Impp_str; 
                     for t = 1:length(Vmpp{mod_i}); Vmpp{mod_i}(t) = interp1(I{mod_i},V_module{mod_i}(t,:),Impp_str(t),'linear','extrap')'; end
                     Pmpp{mod_i} = Vmpp{mod_i}.*Impp{mod_i};
                 end
@@ -264,31 +217,21 @@ for iter = 1:N_iter
 
     %Calculate dissapating heat
     if TOOLBOX_input.electric.IncludeDissapatingHeat
+        days = find(sum(J_{1},2)>0);
+        [HeatGen,ind_Diode] = CalculateGeneratedHeat(TOOLBOX_input,I,Impp,Parameters_1,ind_Diode,numCells,days,T_{1});
+
+        TOOLBOX_input_new = TOOLBOX_input;
+        TOOLBOX_input_new.thermal.HeatGen = HeatGen;
+
+        THERMAL_output_new = THERMAL_main(TOOLBOX_input_new, CELL_output, MODULE_output, WEATHER_output);
+
         if TOOLBOX_input.runPeriodic
-            days = find(sum(J_{1},2)>0);
-            [HeatGen,ind_Diode] = CalculateGeneratedHeat(I,Impp,Parameters_1,ind_Diode,numCells,days,T_{1},TOOLBOX_input);
-
-            TOOLBOX_input_new = TOOLBOX_input;
-            TOOLBOX_input_new.thermal.HeatGen = HeatGen;
-
-            [THERMAL_output_new, ~] = THERMAL_main(TOOLBOX_input_new, CELL_output, MODULE_output, WEATHER_output);
-
-
             T_ = cell(1,N_submod);
             for SubMod_i = 1:N_submod
                 T_{SubMod_i}=THERMAL_output_new.T{SubMod_i} +273.15;
             end
         else %non-periodic simulation
-            HeatGen = cell(N_panels,1);
-            for i = 1:N_panels
-                days = find(sum(J_{i},2)>0);
-                [HeatGen{i},ind_Diode{i}] = CalculateGeneratedHeat(I{i},Impp{i},Parameters_1{i},ind_Diode{i},numCells,days,T_{i},TOOLBOX_input);
-            end
-            TOOLBOX_input_new = TOOLBOX_input;
-            TOOLBOX_input_new.thermal.HeatGen = HeatGen;
-            [THERMAL_output_new, ~] = THERMAL_main(TOOLBOX_input_new, CELL_output, MODULE_output, WEATHER_output);
-            T_=cellfun(@(x) x+273.15, THERMAL_output_new.T,'UniformOutput',false);
-
+            T_ = cellfun(@(x) x+273.15,THERMAL_output_new.T,'un',0);
         end
 
         ELECTRIC_output.HeatGen = HeatGen;
@@ -320,9 +263,6 @@ if strcmp(TYPE,'3Tan') || strcmp(TYPE,'BIF-3Tan')
     ELECTRIC_output.Parameters_STC_3 = Parameters_STC_3; % added by youri
 end
 
-if ~TOOLBOX_input.script
-    TOOLBOX_input.electric.electricplot = true; %true for GUI version
-end
 if TOOLBOX_input.electric.electricplot
     % plot IV curve
     plot_IVCurve(WEATHER_output.Period, V_module, I,TOOLBOX_input);
@@ -332,7 +272,7 @@ if TOOLBOX_input.electric.electricplot
 
     period=WEATHER_output.Period;
     if TOOLBOX_input.runPeriodic
-        absorbed_power= WEATHER_output.A*MODULE_output.Amod;
+        absorbed_power= WEATHER_output.A{1}*MODULE_output.Amod;
     else
         absorbed_power= WEATHER_output.A;
         Amod = MODULE_output.Panels.Amod;
@@ -341,9 +281,4 @@ if TOOLBOX_input.electric.electricplot
     end
     plot_EnergyYield(absorbed_power, Pmpp, time,period,TOOLBOX_input);
 end
-
-if ~TOOLBOX_input.script
-    disp('Electrical calculation finished.DC Output calculated.')
-end
-
 end

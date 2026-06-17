@@ -1,4 +1,4 @@
-function [P_term,P_below,P_emission,P_carnot,P_angle,P_gain] = FundamentalLossesSingle(Fund_Losses_Input,TOOLBOX_input,CELL_output,MODULE_output,CONSTANTS)
+function [P_term,P_below,P_emission,P_carnot,P_angle,P_gain] = FundamentalLossesSingle(Fund_Losses_Input,TOOLBOX_input,CELL_output,MODULE_output)
 %FundamentalLossesSingle Calculates the fundamental losses of the system 
 % with single junction modules.
 %
@@ -13,8 +13,6 @@ function [P_term,P_below,P_emission,P_carnot,P_angle,P_gain] = FundamentalLosses
 %   Simulation results of the CELL module
 % MODULE_output : struct
 %   Simulation results of the MODULE module
-% CONSTANTS : struct
-%   Physical constants
 %
 % Returns
 % -------
@@ -30,10 +28,6 @@ function [P_term,P_below,P_emission,P_carnot,P_angle,P_gain] = FundamentalLosses
 %   The losses due to an angle mismatch
 % P_gain : double
 %   The gain in power due to non-idealities
-% V_mpp_cell1 : double
-%   The maximum power point voltage of cell 1
-% V_mpp_cell2 : double
-%   The maximum power point voltage of cell 2
 %
 % Developed by Y. Blom
 
@@ -52,11 +46,11 @@ V_opt1 = Fund_Losses_Input.V_opt1;
 
 
 %% constants
-h = CONSTANTS.h;
-q = CONSTANTS.q;
-c = CONSTANTS.c;
-k = CONSTANTS.k;
-T_S = CONSTANTS.T_S;
+h = TOOLBOX_input.constants.h;
+q = TOOLBOX_input.constants.q;
+c = TOOLBOX_input.constants.c;
+k = TOOLBOX_input.constants.k;
+T_S = TOOLBOX_input.constants.T_S;
 
 %Properties module
 A_mod = MODULE_output.Amod;
@@ -72,24 +66,24 @@ factor_Vopt = (E_g-V_opt1)./(E_g-V_opt1_ideal);
 
 %The wavelengths that are present at GENPRO are loaded
 wav_GENPRO = CELL_output.CELL_FRONT.wav;
-N = find(wav > wav_GENPRO(end)*1e-6,1)-1;  %N is the last wavelength that is in GENPRO
+N = find(wav > wav_GENPRO(end),1)-1;  %N is the last wavelength that is in GENPRO
 N_1 = find(wav > h*c/(q*E_g),1)-1; %N1 is the wavelength corresponding to the bandgap of silicon
 
 %% Thermalization & Emission
 
 %A numberical integration is done to calculate the thermalization losses
-photon_emission = 2*Angle_emit_emission*c./(wav.^4)*1./(exp((ones(length(wav),length(V_opt1))*h*c./wav-q*V_opt1)./(k*T_cell))-1);
+photon_emission = 2*Angle_emit_emission*c./(wav.^4)*1./(exp((ones(length(V_opt1),length(wav))*h*c./wav-q*V_opt1)./(k*T_cell))-1);
 P_term_f = A_mod*photon_spec.*(h*c./wav-E_g*q);
 P_emission_f = E_g*q*A_mod*photon_emission;
 I_max_f = A_mod*(photon_spec-photon_emission)*q;
-P_term = trapz(wav(1:N_1),P_term_f(1:N_1,:));
-P_emission = trapz(wav(1:N_1),P_emission_f(1:N_1,:));
-I_max = trapz(wav(1:N_1),I_max_f(1:N_1,:));
+P_term = trapz(wav(1:N_1),P_term_f(:,1:N_1)')';
+P_emission = trapz(wav(1:N_1),P_emission_f(:,1:N_1)')';
+I_max = trapz(wav(1:N_1),I_max_f(:,1:N_1)')';
 
 %% Below bandgap losses
 %A numberical integration is done to calculate the below bandgap lossses.
 P_below_f = A_mod*Irr_spec;
-P_below = trapz(wav(N_1:end),P_below_f(N_1:end,:));
+P_below = trapz(wav(N_1:end),P_below_f(:,N_1:end)')';
 
 
 %% Carnot losses
@@ -102,10 +96,14 @@ P_angle = V_angle.*I_max;
 
 
 %% Gains
-A = interp1(wav_GENPRO,A,wav(1:N)*1e6);
+A = interp1(wav_GENPRO,A,wav(1:N));
 A(isnan(A)) = 0;
 
-photon_emission_actual = 2*Angle_emit_emission*c./(wav.^4)*1./(exp((ones(length(wav),length(V_opt1))*h*c./wav-q*V_mpp_cell1)./(k*T_cell))-1);
+photon_emission_actual = 2*Angle_emit_emission*c./(wav.^4)*1./(exp((ones(length(V_opt1),length(wav))*h*c./wav-q*V_mpp_cell1)./(k*T_cell))-1);
 I_gain_f1 = A_mod*(photon_emission-photon_emission_actual)*q;
-I_gain_f2 = A_mod*(photon_spec(1:N,:)-photon_emission_actual(1:N,:)).*A*q;
-I_gain = trapz(wav(1
+I_gain_f2 = A_mod*(photon_spec(:,1:N)-photon_emission_actual(:,1:N)).*A*q;
+I_gain = trapz(wav(1:N_1),I_gain_f1(:,1:N_1)')'+trapz(wav(N_1:N),I_gain_f2(:,N_1:N)')';
+
+P_gain = I_gain.*(E_g-V_carnot-V_angle);
+
+end

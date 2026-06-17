@@ -1,3 +1,4 @@
+function plot_EnergyYield_PVT(pvt_collector_output,WEATHER_output)
 %FIGURES_PVT_Output
 % Parameters
 % ----------
@@ -9,12 +10,10 @@
 %   Month for each weather value
 % Developed by by ZUA.
 
-function plot_EnergyYield_PVT(pvt_collector_output,WEATHER_output)
-
 period=WEATHER_output.Period;
 month=WEATHER_output.month;
 day=WEATHER_output.day;
-Irr=mean(WEATHER_output.Irr,2);
+Irr=mean(WEATHER_output.Irr{1},2);
 ambient_temperature=WEATHER_output.ambient_temperature;
 
 Two = pvt_collector_output.Two;
@@ -112,22 +111,6 @@ end
     legend('T_{fluid}', 'T_{cell}', 'T_{ambient}');
     SetFigureDefaults(f)
 
-% % % % Daily efficiency plot
-% % %     f = figure(36);
-% % %     plot(xx,eta_tha)
-% % %     ylabel('Thermal efficiency');
-% % %     yyaxis right
-% % %     plot(xx,eta_E)
-% % %     if time/24 >=31
-% % %         xticks(ticks); xticklabels(month_labelss)
-% % %     else
-% % %         xlabel('Time [hours]')
-% % %     end
-% % %     ylabel('Electrical efficiency');
-% % %     title('Daily Efficiency Plot');
-% % %     xlim([1 time])
-% % %     legend('\eta_{thermal}', '\eta_{electrical}');
-% % %     SetFigureDefaults(f)
 
 %%
 function SetFigureDefaults(f)

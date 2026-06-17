@@ -1,4 +1,4 @@
-function [pvt_collector_output] = Solar_thermal_water_I(~, WEATHER_output)
+function [pvt_collector_output] = Solar_thermal_water_I(~,~, WEATHER_output)
 % Calculates the thermal yield of thermal collector with unique coefficient
 % Flat Plate Glazed Liquid Heating Collector - 0.944 m2
 % OG-100 Solar Thermal Collector Certification (10002164 - ACR Solar International - 10-02 - Glazed Flat Plate)
@@ -24,7 +24,7 @@ a2a = 0.0063;                   % W/(m2K2)
 etao_tha = 0.714;
 C_f = 4186;                     % specific heat (J/kg*C) 
 
-I = mean(WEATHER_output.Irr,2)';
+I = mean(WEATHER_output.Irr{1},2)';
 Tam = [WEATHER_output.ambient_temperature]';
 
 idx = find(I~=0);                % find the indices of non-zero elements in I
@@ -54,7 +54,7 @@ Qa = eta_tha .* A_g .* I;
 Two = T_i + (Qa ./ (dm_f * C_f));
 Tmean = (T_i + Two) ./ 2;
 % Total solar irradiance received by the PVT system in kWh/m^2/year
-total_I_sun = sum(mean(WEATHER_output.Irr,2))/1000; 
+total_I_sun = sum(mean(WEATHER_output.Irr{1},2))/1000; 
 % Average thermal efficiency
 etaSum = sum(eta_tha)/length(I1);
 
@@ -75,7 +75,7 @@ pvt_collector_output.total_electrical_output=total_electrical_output;
 
 %% Plot results
 period=WEATHER_output.Period;
-Irr = mean(WEATHER_output.Irr,2);
+Irr = mean(WEATHER_output.Irr{1},2);
 ambient_temperature = WEATHER_output.ambient_temperature;
 
 time = length(Irr);

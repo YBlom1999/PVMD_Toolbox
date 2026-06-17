@@ -1,32 +1,40 @@
-function [k_pred,Rcon] = DegThermalCycling(ELECTRIC_output,T,C,Ea,n,b,Time,Rcon_init,NumCells,CONSTANTS)
-%DegDiscoloration Calculates the degradation due to LID
+function [k_pred,Rcon] = DegThermalCycling(ELECTRIC_output,T,A_c,Ea,n,b,Rcon_init,NumCells,CONSTANTS)
+% DegThermalCycling Calculates the degradation due to thermal cycling (TC)
 %
-% This function calculates the degradation rate caused by LID. A decrease
-% in minority carrier lifetime is simulated, which has an effect on the
-% equivalent circuit parameters
+% This function calculates the degradation rate caused by TC. Due to
+% differences in thermal expansion coefficients, the solder joints
+% experience mechanical stress.
 %
 % Parameters
 % ----------
 % ELECTRIC_output: struct
 %   Result of the electrical simulation
-% Jph_abs : double
-%   Absorbed current of the module
-% factor_max : double
-%   The maximum value the saturation current should be multiplied with.
-% C : double
-%   The constant that determines how fast the degradation goes.
-% Time: double
-%   The time for which the degradation needs to be simulated
-% CONSTANTS : struct
-%   Structure of physical constants
+% T : double
+%   Temperature of the module
+% A_c : double
+%   The pre-exponential constant of thermal cycling
+% Ea : double
+%   The activation energy for thermal cycling
+% n : double
+%   The exponent related to delta T
+% b : double
+%   The exponent related to the ammount of thermal cycles
+% Rcon_init: double
+%   The original resistance for the interconnection
+% NumCells: double
+%   The number of cells in the module
+% CONSTANTS: struct
+%   physical constants
 %
 % Returns
 % -------
 % k_pred: double
 %   The predicted degradation rate due to LID
+% Rcon: double
+%   The updated resistance of the interconnection
 %
 % Developed by by Youri Blom
-k_b = CONSTANTS.k_b;
+k = CONSTANTS.k;
 q = CONSTANTS.q;
 
 T_daily = reshape(T(1:8760),[24,8760/24]);
@@ -39,7 +47,7 @@ T_diff = (T-TC)>0;
 crosses = abs(T_diff(2:end)-T_diff(1:end-1));
 Rate = [0,cumsum(crosses)];
 
-Damage = C*(Delta_T)^n*Rate.^b*exp(-q*Ea/k_b/T_max);
+Damage = A_c*(Delta_T)^n*Rate.^b*exp(-q*Ea/k/T_max);
 k_pred = [0,diff(Damage)];
 
 P_STC = ELECTRIC_output.P_STC;

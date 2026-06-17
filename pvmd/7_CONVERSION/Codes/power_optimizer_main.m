@@ -1,5 +1,5 @@
 function conversion_out = power_optimizer_main(module, inverter, ...
-    cable_losses, simulation, power_optimizer)
+    cable_losses, simulation, power_optimizer,modCon)
 %Main function for the power optimizer
 %
 % Since the power optimizer is a special type of inverter, it requires of a
@@ -17,6 +17,8 @@ function conversion_out = power_optimizer_main(module, inverter, ...
 %   Details of the simulation
 % power_optimizer : struct
 %   User inputs related to the power optimizer characteristics
+% modCon: struct
+%   Overview of the string connection of the modules
 %
 % Returns
 % -------
@@ -114,50 +116,24 @@ fprintf('The predicted power optimizer output energy yield is %0.2f Wh\n',...
     sum(Pdc_tot));
 fprintf('The overall power optimizer efficiency is %0.2f %%\n',eff_PO_tot);
 
-% Add central inverter
 if power_optimizer.central_inverter
-    [system,string] = compute_pv_power(pow_opt,inverter,simulation.periodic);
-    [inverter_data, ~] = get_converter_data(inverter.model,nan,nan,'inv');
+    inverter.type = 'STR';
+    [system,string] = compute_pv_power(pow_opt,inverter,simulation.periodic,modCon);
     
-    % Retrieve efficiency data
-    inv_ac_power = inverter_data(:,1);
-    inv_eff = inverter_data(:,2);
-    inv_dc_power = inv_ac_power./inv_eff*100;
-    inv_curve = [inv_eff inv_dc_power];
-    inv_curve = interpolate_first_point(inv_curve);
-    
-    % Fixed voltage calculations
-    if power_optimizer.fixed_voltage && simulation.periodic
-        Vnom_inv = inverter_data(1,3);
-        pow_opt.current = pow_opt.power/Vnom_inv;
-        
-        string.current = pow_opt.current;
-        string.voltage = string.power/string.current;
-        string.voltage(isnan(string.voltage)) = 0;
-        
-        system.current = pow_opt.current*inverter.parallel;
-        system.voltage = system.power/system.current;
-        system.voltage(isnan(system.voltage)) = 0;
-    end
-    
-    % Cable losses
-    system.power = include_cable_losses(system.power,string.current,...
-        system.current,cable_losses,inverter.type);
+    Vmax = compute_max_system_voltage(inverter.type,system,string,pow_opt);
+    inv_constants = get_inverter_constants(Vmax,inverter);
+    conversion_out = dc_ac_conversion(inverter, system, string, pow_opt, ...
+        cable_losses, inv_constants, simulation.periodic);
 
-    % Inverter clipping
-    system.power(system.power>inv_curve(end,2)) = inv_curve(end,2);
-    
-    % Interpolate inverter efficiency
-    inv_eff = interp1(inv_curve(:,2),inv_curve(:,1),system.power);
-    Pac = inv_eff/100.*system.power;
-    Pac_tot = sum(Pac);
-    inv_eff_tot = Pac_tot/sum(system.power)*100;
-    
-    fprintf('The predicted inverter output energy yield is %0.2f Wh [AC]\n',...
-        Pac_tot);
-    fprintf('The overall inverter efficiency is %0.2f %%\n',inv_eff_tot);
+    conversion_out.Pdc = module.power;
+    conversion_out.Pdc_pow_opt = pow_opt.power;
+    conversion_out.eff_pow_opt = eff_pow_opt;
 else
-    Pac = nan; system.power = nan; inverter.model = nan;
+    conversion_out = struct();
+
+    conversion_out.Pdc = module.power;
+    conversion_out.Pdc_pow_opt = pow_opt.power;
+    conversion_out.eff_pow_opt = eff_pow_opt;
 end
 
 if inverter.plot_graphs
@@ -167,17 +143,6 @@ if inverter.plot_graphs
         eff_curve, Vmpp,...
         Pac, system.power,...
         power_optimizer.model, inverter.model, simulation.periodic)
-end
-
-conversion_out = struct();
-conversion_out.Pdc = module.power;
-conversion_out.Pdc_pow_opt = pow_opt.power;
-conversion_out.eff_pow_opt = eff_pow_opt;
-if power_optimizer.central_inverter
-    conversion_out.Pac_total = Pac_tot;
-    conversion_out.Pac = Pac;
-    conversion_out.eff = inv_eff;
-    conversion_out.eff_overall = inv_eff_tot;
 end
 
 end
@@ -206,15 +171,13 @@ function [converter_data, Vmpp] = get_converter_data(conv_model, ...
 % Vmpp : double
 %   More relevant data from the converter
 
-data_folder = get_data_path(type);
-
 file_name = strcat(conv_model, '.xlsx');
 if strcmp(type,'pow-opt') && startsWith(conv_model,'P-')
-    file = fullfile(data_folder,'Solar Edge',file_name);
+    file = fullfile('Solar Edge',file_name);
 elseif strcmp(type,'inv') && startsWith(conv_model,'SE')
-    file = fullfile(data_folder,'Solar Edge',file_name);
+    file = fullfile('Solar Edge',file_name);
 else
-    file = fullfile(data_folder,'User Specified',file_name);
+    file = fullfile('User Specified',file_name);
 end
 
 converter_data = xlsread(file);
@@ -306,4 +269,15 @@ for i = 1:length(Vdc_module)
     if Vdc_module(i) > Vmpp(3)
         eff_PO(i) = E{3}(i);
     elseif Vdc_module(i) > Vmpp(2)
-  
+        x = [Vmpp(2) Vmpp(3)];
+        y = [E{2}(i) E{3}(i)];
+        eff_PO(i) = interp1(x,y,Vdc_module(i));
+    elseif Vdc_module(i) > Vmpp(1)
+        x = [Vmpp(1) Vmpp(2)];
+        y = [E{1}(i) E{2}(i)];
+        eff_PO(i) = interp1(x,y,Vdc_module(i)); 
+    else
+        eff_PO(i) = E{1}(i);
+    end
+end
+end

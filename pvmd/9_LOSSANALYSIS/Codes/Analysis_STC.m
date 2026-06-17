@@ -24,18 +24,13 @@ function Losses_STC = Analysis_STC(TOOLBOX_input,CELL_output,MODULE_output,ELECT
 %
 % Developed by Y. Blom
 
-B_STC = 0; % 1 for B-STC simulation, keep 0 as default.
-[src_folder,~,~] = get_folder_structure;
-load(fullfile(src_folder,'1_CELL','GenPro4','spectrum.mat'),'spec'); %The AM1.5 spectrum is loaded
+B_STC = TOOLBOX_input.LossAnalysis.B_STC; % 1 for B-STC simulation, keep 0 as default.
+set = read_settingsGP(TOOLBOX_input.settings);
+[wav,J_spec,~] = read_spectrum(set.spectrum,set.root);
+wav = wav';
+J_spec = J_spec';
 
-%% a structure of all constants are defined
-CONSTANTS.h = 6.62607004e-34;
-CONSTANTS.q = 1.60217662e-19;
-CONSTANTS.c = 299792458;
-CONSTANTS.k = 1.380649e-23;
-CONSTANTS.T_S = 5778;
-
-T_cell = 298.15;
+T_cell = TOOLBOX_input.constants.T_STC;
 
 %Properties of the module
 A_mod = MODULE_output.Amod;
@@ -45,7 +40,7 @@ if B_STC == 0
 elseif B_STC == 1
     Angle_emit = 4*pi;
 end
-Angle_abs = 67.7e-6; %https://en.wikipedia.org/wiki/Solid_angle
+Angle_abs = TOOLBOX_input.constants.SolidAngleSun;
 V_mpp = ELECTRIC_output.Vmpp_STC;
 I_mpp = ELECTRIC_output.Impp_STC;
 type = CELL_output.TYPE;
@@ -75,12 +70,12 @@ end
 
 %The spectrum is loaded and transferred into the spectral irradiance and
 %the spectral photon flux
-h = CONSTANTS.h;
-c = CONSTANTS.c;
-q = CONSTANTS.q;
-wav = spec.data(:,1)*1e-6;
-Irr_spec = spec.data(:,2)*1e10*h*c./(q*wav);
-photon_spec = spec.data(:,2)*1e10/q;
+h = TOOLBOX_input.constants.h;
+c = TOOLBOX_input.constants.c;
+q = TOOLBOX_input.constants.q;
+wav = wav*1e-6;
+Irr_spec = J_spec*1e10*h*c./(q*wav);
+photon_spec = J_spec*1e10/q;
 for i = 1 : length(wav)-1
     Irr_spec(i) = Irr_spec(i)*1e-9/(wav(i+1)-wav(i));
     photon_spec(i) = photon_spec(i)*1e-9/(wav(i+1)-wav(i));
@@ -97,10 +92,10 @@ P_in = A_mod*trapz(wav,Irr_spec);
 
 % The optimal voltage is calculated for the given irradiance level
 if strcmp(type,'SHJ') || strcmp(type,'BIF')
-    V_opt1 = Vopt_calculator(wav,photon_spec',E_g,mean(T_cell),Angle_emit);
+    V_opt1 = Vopt_calculator(wav,photon_spec,E_g,mean(T_cell),Angle_emit);
 elseif strcmp(type,'Tan') || strcmp(type,'BIF-Tan')
-    V_opt1 = Vopt_calculator(wav,photon_spec',E_g1,mean(T_cell),Angle_emit);
-    V_opt2 = Vopt_calculator(wav,photon_spec',E_g2,mean(T_cell),Angle_emit);
+    V_opt1 = Vopt_calculator(wav,photon_spec,E_g1,mean(T_cell),Angle_emit);
+    V_opt2 = Vopt_calculator(wav,photon_spec,E_g2,mean(T_cell),Angle_emit);
 end
 
 %% Fundamental losses
@@ -117,7 +112,7 @@ if strcmp(type,'SHJ') || strcmp(type,'BIF')|| strcmp(type,'T-F')
     Fund_Losses_input.V_mpp = V_mpp;
     Fund_Losses_input.T_cell = T_cell;
     Fund_Losses_input.V_opt1 = V_opt1;
-    [P_term,P_below,P_emission,P_carnot,P_angle,P_gain] = FundamentalLossesSingle(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output,CONSTANTS);
+    [P_term,P_below,P_emission,P_carnot,P_angle,P_gain] = FundamentalLossesSingle(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 elseif strcmp(type,'Tan') || strcmp(type,'BIF-Tan')
     Fund_Losses_input.wav = wav;
     Fund_Losses_input.Irr_spec = Irr_spec;
@@ -135,7 +130,7 @@ elseif strcmp(type,'Tan') || strcmp(type,'BIF-Tan')
     Fund_Losses_input.T_cell = T_cell;
     Fund_Losses_input.V_opt1 = V_opt1;
     Fund_Losses_input.V_opt2 = V_opt2;
-    [P_term,P_below,P_emission,P_carnot,P_angle,P_gain] = FundamentalLossesTandem(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output,CONSTANTS);
+    [P_term,P_below,P_emission,P_carnot,P_angle,P_gain] = FundamentalLossesTandem(Fund_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 end
 P_fund = P_term+P_below+P_emission+P_carnot+P_angle-P_gain;
 
@@ -154,7 +149,7 @@ if strcmp(type,'SHJ')|| strcmp(type,'BIF')|| strcmp(type,'T-F')
     Opt_Losses_input.V_mpp = V_mpp;
     Opt_Losses_input.I_mpp = I_mpp;
     Opt_Losses_input.T_cell = T_cell;
-    [P_cell,P_metal,P_ref,P_diffA,I_abs] = OpticalLossesSingle(Opt_Losses_input,TOOLBOX_input,MODULE_output,CELL_output,CONSTANTS);
+    [P_cell,P_metal,P_ref,P_diffA,I_abs] = OpticalLossesSingle(Opt_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 elseif strcmp(type,'Tan') || strcmp(type,'BIF-Tan')
     Opt_Losses_input.P_in = P_in;
     Opt_Losses_input.P_fund = P_fund;
@@ -173,13 +168,13 @@ elseif strcmp(type,'Tan') || strcmp(type,'BIF-Tan')
     Opt_Losses_input.V_mpp = V_mpp;
     Opt_Losses_input.I_mpp = I_mpp;
     Opt_Losses_input.T_cell = T_cell;
-    [P_cell,P_metal,P_ref,P_diffA,I_abs1,I_abs2] = OpticalLossesTandem(Opt_Losses_input,TOOLBOX_input,MODULE_output,CELL_output,CONSTANTS);
+    [P_cell,P_metal,P_ref,P_diffA,I_abs1,I_abs2] = OpticalLossesTandem(Opt_Losses_input,TOOLBOX_input,CELL_output,MODULE_output);
 end
 
 if strcmp(type,'SHJ') || strcmp(type,'BIF')
     IV_curvename = TOOLBOX_input.electric.IVtype;
     [P_diffA, I_abs] = Correct_PdiffA(TOOLBOX_input,MODULE_output,P_diffA,I_abs,T_cell,V_opt1',IV_curvename);
-elseif strcmp(type,'Tan')|| strcmp(type,'BIF-Tan')    
+elseif strcmp(type,'Tan')|| strcmp(type,'BIF-Tan')
     IV_curvename_top = TOOLBOX_input.electric.IVtypeTop;
     IV_curvename_bot = TOOLBOX_input.electric.IVtypeBot;
     [P_diffA, I_abs1] = Correct_PdiffA(TOOLBOX_input,MODULE_output,P_diffA,I_abs1,T_cell,V_opt1',IV_curvename_top);
@@ -194,7 +189,7 @@ if strcmp(type,'SHJ')|| strcmp(type,'BIF')|| strcmp(type,'T-F')
     Elec_Losses_input.Parameters = ones(N_cells,1,5).*reshape(Parameters,1,1,5);
 
     Elec_Losses_input.T_cell = T_cell;
-    [P_series,P_shunt,P_NRRI,P_NRRV] = ElectricLossesSingle_avg(Elec_Losses_input,MODULE_output);
+    [P_series,P_shunt,P_NRRI,P_NRRV] = ElectricLossesSingle_avg(Elec_Losses_input,TOOLBOX_input,MODULE_output);
 elseif strcmp(type,'Tan') || strcmp(type,'BIF-Tan')
     Elec_Losses_input.I_abs1 = I_abs1;
     Elec_Losses_input.I_abs2 = I_abs2;
@@ -203,7 +198,7 @@ elseif strcmp(type,'Tan') || strcmp(type,'BIF-Tan')
     Elec_Losses_input.Parameters1 = ones(N_cells,1,5).*reshape(Parameters1,1,1,5);
     Elec_Losses_input.Parameters2 = ones(N_cells,1,5).*reshape(Parameters2,1,1,5);
     Elec_Losses_input.T_cell = T_cell;
-    [P_series,P_shunt,P_NRRI,P_NRRV,PowerRatio] = ElectricLossesTandem_avg(Elec_Losses_input,TOOLBOX_input,MODULE_output,CONSTANTS);
+    [P_series,P_shunt,P_NRRI,P_NRRV,PowerRatio] = ElectricLossesTandem_avg(Elec_Losses_input,TOOLBOX_input,MODULE_output);
 end
 
 %% System losses
@@ -213,13 +208,11 @@ if strcmp(type,'SHJ')|| strcmp(type,'BIF')|| strcmp(type,'T-F')
     Sys_Losses_input.I_abs = I_abs;
     Sys_Losses_input.Parameters = ones(N_cells,1,5).*reshape(Parameters,1,1,5);
     Sys_Losses_input.T_cell = T_cell;
-    if (isfield(TOOLBOX_input, 'runACConversionPart')==1) %To check whether the AC simulation is performed
-        if TOOLBOX_input.runACConversionPart == 1
-            Sys_Losses_input.Pdc = ELECTRIC_output.P_STC;
-            Sys_Losses_input.Pac = CONVERSION_output.Pac_STC;
-        end
+    if isstruct(CONVERSION_output)
+        Sys_Losses_input.Pdc = ELECTRIC_output.P_STC;
+        Sys_Losses_input.Pac = CONVERSION_output.Pac_STC;
     end
-    [P_con,P_mismatch,P_cable,P_inv] = SystemLossesSingle(Sys_Losses_input,TOOLBOX_input,ELECTRIC_output,MODULE_output);
+    [P_con,P_mismatch,P_cable,P_inv] = SystemLossesSingle(Sys_Losses_input,TOOLBOX_input,MODULE_output,CONVERSION_output);
 elseif strcmp(type,'Tan') || strcmp(type,'BIF-Tan')
     if Terminals == 2 || Terminals ==3
         Sys_Losses_input.I_mpp = I_mpp;
@@ -230,13 +223,38 @@ elseif strcmp(type,'Tan') || strcmp(type,'BIF-Tan')
         Sys_Losses_input.Parameters2 = ones(N_cells,1,5).*reshape(Parameters2,1,1,5);
         Sys_Losses_input.T_cell = T_cell;
 
-        if (isfield(TOOLBOX_input, 'runACConversionPart')==1 && TOOLBOX_input.runACConversionPart == 1) %To check whether the AC simulation is performed
+        if isstruct(CONVERSION_output)
             Sys_Losses_input.Pdc = ELECTRIC_output.P_STC;
             Sys_Losses_input.Pac = CONVERSION_output.Pac_STC;
         end
 
-        [P_con,P_mismatch,P_cable,P_inv] = SystemLossesTandem2T(Sys_Losses_input,TOOLBOX_input,ELECTRIC_output,MODULE_output);
+        [P_con,P_mismatch,P_cable,P_inv] = SystemLossesTandem2T(Sys_Losses_input,TOOLBOX_input,MODULE_output,CONVERSION_output);
     end
+end
+
+%% Write to output
+Losses_STC.P_term_full = P_term;
+Losses_STC.P_below_full = P_below;
+Losses_STC.P_carnot_full = P_carnot;
+Losses_STC.P_emission_full = P_emission;
+Losses_STC.P_angle_full = P_angle;
+Losses_STC.P_gain_full = P_gain;
+Losses_STC.P_cell_full = P_cell;
+Losses_STC.P_metal_full = P_metal;
+Losses_STC.P_ref_full = P_ref;
+Losses_STC.P_diffA_full = P_diffA;
+Losses_STC.P_NRRI_full = P_NRRI;
+Losses_STC.P_shunt_full = P_shunt;
+Losses_STC.P_series_full = P_series;
+Losses_STC.P_con_full = P_con;
+Losses_STC.P_NRRV_full = P_NRRV;
+Losses_STC.P_mismatch_full = P_mismatch;
+Losses_STC.P_cable_full = P_cable;
+Losses_STC.P_inv_full = P_inv;
+Losses_STC.P_in_full = P_in;
+Losses_STC.P_out_DC_full = ELECTRIC_output.P_STC;
+if isstruct(CONVERSION_output)
+    Losses_STC.P_out_AC_full = CONVERSION_output.Pac_STC;
 end
 
 %% Total power
@@ -246,27 +264,22 @@ Power = [P_term;P_below;P_angle;P_NRRV;P_diffA;P_carnot;P_cell;P_emission;P_NRRI
 P_total = sum(Power);
 Power = [Power; P_total];
 Components = ["Thermalization";"Below bandgap";"Angle mismatch";"Recombination V";"Parasitic absorption";"Carnot losses";"Cell spacing";"Emission losses";"Recombination I";"Reflection/Transmission";"Metal shading";"Cell interconnection";"Mismatch losses";"Shunt resistance";"Series resistance";"Gain";"Power";"Total"];
-Losses_STC.Power_DC = Power;
 Percentage = 100*Power/P_in;
 disp(table(Components,Power,Percentage))
-Losses_STC.Components_DC = Components;
-Losses_STC.Percentage_DC = Percentage;
 
-if (isfield(TOOLBOX_input, 'runACConversionPart')==1)
-    if TOOLBOX_input.runACConversionPart == 1
-        disp('AC losses')
-        Pac_STC = CONVERSION_output.Pac_STC;
-        panels = TOOLBOX_input.Conversion.Parallel_Modules*TOOLBOX_input.Conversion.Series_Modules;
-        Power = panels*[P_term;P_below;P_angle;P_NRRV;P_diffA;P_carnot;P_cell;P_emission;P_NRRI;P_inv/panels;P_ref;P_metal;P_cable/panels;P_con;P_mismatch;P_shunt;P_series;-P_gain;Pac_STC/panels];
-        P_total = sum(Power);
-        Power = [Power; P_total];
-        Components = ["Thermalization";"Below bandgap";"Angle mismatch";"Recombination V";"Parasitic absorption";"Carnot losses";"Cell spacing";"Emission losses";"Recombination I";"Inverter losses";"Reflection/Transmission";"Metal shading";"Cable losses";"Cell interconnection";"Mismatch losses";"Shunt resistance";"Series resistance";"Gain";"Power";"Total"];
-        Losses_STC.Power_AC = Power;
-        Percentage = 100*Power/(P_in*panels);
-        disp(table(Components,Power,Percentage))
-        Losses_STC.Components_AC = Components;
-        Losses_STC.Percentage_AC = Percentage;
-    end
+if isstruct(CONVERSION_output)
+    disp('AC losses')
+    Pac_STC = CONVERSION_output.Pac_STC;
+    panels = TOOLBOX_input.Conversion.Parallel_Modules*TOOLBOX_input.Conversion.Series_Modules;
+    Power = panels*[P_term;P_below;P_angle;P_NRRV;P_diffA;P_carnot;P_cell;P_emission;P_NRRI;P_inv/panels;P_ref;P_metal;P_cable/panels;P_con;P_mismatch;P_shunt;P_series;-P_gain;Pac_STC/panels];
+    P_total = sum(Power);
+    Power = [Power; P_total];
+    Components = ["Thermalization";"Below bandgap";"Angle mismatch";"Recombination V";"Parasitic absorption";"Carnot losses";"Cell spacing";"Emission losses";"Recombination I";"Inverter losses";"Reflection/Transmission";"Metal shading";"Cable losses";"Cell interconnection";"Mismatch losses";"Shunt resistance";"Series resistance";"Gain";"Power";"Total"];
+    Losses_STC.Power_AC = Power;
+    Percentage = 100*Power/(P_in*panels);
+    disp(table(Components,Power,Percentage))
+    Losses_STC.Components_AC = Components;
+    Losses_STC.Percentage_AC = Percentage;
 end
 
 %% Plot results
@@ -296,4 +309,11 @@ if TOOLBOX_input.LossAnalysis.plotFigures == 1
             Plot_Components = ["DC power bottom cell";"DC power top cell";"Mismatch losses";"Cell interconnection";'Recombination I';'Recombination V';"Shunt resistance";"Series resistance";"Parasitic absorption";"Reflection";"Metal shading";'Cell spacing';"Non-ideality effect";'Angle mismatch';'Carnot losses';'Emission losses';'Below bandgap';'Thermalization'];
             Plot_Categories = ["Fundamental losses:", "Optical losses:", "Electrical losses:","System losses:","Output Power"];
             Plot_Power = 100*[P_out*(1-PowerRatio);Pdc_STC*PowerRatio;P_mismatch;P_con;P_NRRI;P_NRRV;P_shunt;P_series;P_diffA;P_ref;P_metal;P_cell;-P_gain;P_angle;P_carnot;P_emission;P_below;P_term]/P_in;
-            Plot_Power_Categories = 100*[P_term+P_below+P_angle+P_carnot+P_
+            Plot_Power_Categories = 100*[P_term+P_below+P_angle+P_carnot+P_emission-P_gain;P_cell+P_metal+P_ref+P_diffA;P_NRRV+P_NRRI+P_series+P_shunt;P_mismatch+P_con;P_out]/P_in;
+            Plot_type = 4;
+        end
+    end
+    title_plot = 'STC simuation';
+    plot_losses(Plot_Components,Plot_Power,Plot_Categories,Plot_Power_Categories,Plot_type,title_plot);
+end
+end

@@ -1,4 +1,4 @@
-function [pvt_collector_output] = water(MODULE_output, WEATHER_output)
+function [pvt_collector_output] = water(~,MODULE_output, WEATHER_output)
 % Calculates the thermal and PV yield of water-based PVT collector
 % 08-23 - Water-based PVT: ths
 %
@@ -16,7 +16,7 @@ function [pvt_collector_output] = water(MODULE_output, WEATHER_output)
 % 
 % Developed by ZUA.
 
-Ia = mean(WEATHER_output.Irr,2)';
+Ia = mean(WEATHER_output.Irr{1},2)';
 Tam = [WEATHER_output.ambient_temperature]';
 Vw = [WEATHER_output.wind_speed]';
 L = MODULE_output.ML;
@@ -85,7 +85,7 @@ eta_E = eta_ref.*(1 - (beta_p.*(Tc - Tcel_ref))+(delta*log(Ia/I_ref)));
 eta_E(Ia<=1) = 0;
 eta_tha = dm_w.*C_w.*(Two - Twin_h)./(A_mod.*Ia);
 eta_tha(eta_tha<0) = 0;
-eta_tha(eta_tha>0.5) = 0.5;
+eta_tha(eta_tha>0.55) = 0.55;
 eta_tha(Ia<=1) = 0;
 
 Quele = Ia.*eta_E;
@@ -103,7 +103,7 @@ pvt_collector_output.y(:, 9) = eta_tha;   % Store eta_tha values in the ninth co
 pvt_collector_output.y(:, 10) = eta_E;    % Store eta_E values in the tenth column of y
 
 % Total solar irradiance received by the PVT system in kWh/m^2/year
-total_I_sun = sum(mean(WEATHER_output.Irr,2))/1000; 
+total_I_sun = sum(mean(WEATHER_output.Irr{1},2))/1000; 
 % Average thermal efficiency
 etaSum = sum(eta_tha)/length(I1);
 % Average electrical efficiency
@@ -127,7 +127,7 @@ pvt_collector_output.h=h;
 
 %% Plot
 period=WEATHER_output.Period;
-Irr = mean(WEATHER_output.Irr,2);
+Irr = mean(WEATHER_output.Irr{1},2);
 ambient_temperature = WEATHER_output.ambient_temperature;
 
 time = length(Irr);
@@ -242,11 +242,11 @@ beta = 0.88;
 eta_ref = 0.15;         
 beta_p = 0.0045;       
 lamda_ted = 0.2;          
-lamda_abs = 160;                 % for Aluminuml_i = 0.08;            
+lamda_r = 400;                 % for Aluminuml_i = 0.08;            
 lamda_ins = 0.034;        
 l_mo = 0.001;          
-lamda_mo = 40;          
-lamda_w = 0.6;          
+lamda_mo = 60;          
+lamda_w = 0.62;          
 rou_gla = 2200;
 C_gla = 670;               
 M_gla = rou_gla*l_gla*A_mod;       
@@ -267,10 +267,13 @@ Tcel_ref = 25;
 I_ref = 1000;
 delta = 0.052;     
 l_ins = 0.05;
+l_r = 0.001;
+rho_r = 8900;
+C_r = 385;
 
-A_tm = 4*d_o*L/2;
+A_tm = 4*d_o*L;
 A_tr = (W - 4*d_o)*L;
-A_rm = (4*d_o*L)/4;
+A_rm = (4*d_o*L);
 A_ri = (W - 4*d_o)*L;
 A_mi = 4*(d_o*L + (3.14*d_o*L/2));
 A_w = 3.14*4*d_i*L;      
@@ -278,26 +281,23 @@ A_w = 3.14*4*d_i*L;
 V_m = pi*L*((d_o^2) - (d_i^2));         
 V_w = pi*L*(d_i^2);                   
 V_i = A_mod*l_ins - (pi*L*(d_o^2));       
-l_abs = 0.001;
-rho_abs = 2710;
-C_abs = 887;
-M_abs = rho_abs*A_c*l_abs;
+M_r = rho_r*A_c*l_r;
 M_m = rou_m*V_m;                         
 M_w = rou_w*V_w;                         
 M_i = rou_ins*V_i;                       
 
 hcgmc = 1/((l_gla/lamda_gla) + (l_cel/lamda_cel));
 hccmt = 1/((l_cel/lamda_cel) + (l_ted/lamda_ted));
-hctmm = lamda_ted/l_ted;
-hctmr = 1/((l_ted/lamda_ted) + (l_abs/lamda_abs));
-hcrmm = 2*lamda_abs/((W - d_o)/4);
+hctmm = 2*lamda_ted/l_ted;
+hctmr = 1/((l_ted/lamda_ted) + (l_r/lamda_r));
+hcrmm = 2*lamda_r/((W - d_o)/4);
 hcrmi = lamda_ins/l_ins;
 hcmmi = 2*lamda_ins/l_ins;
 h_w = 4.364*lamda_w/d_i;
-A_mw_hvmmw = 1/((1/(h_w*A_w)) + (l_mo/(lamda_mo*d_i*L)));
+A_mw_hvmmw = 1/((1/(h_w*A_w)) + (l_mo/(4*lamda_mo*d_i*L)));
 
-Tsky = T_amb-20;       
-hva = 6.5 + 3.3*V_w2;           
+Tsky = T_amb - 20;
+hva = 5.7 + 3.8*V_w2;          
 
 %% for glass : x(1)
 hrgms = sigma*em_gla*(x(1) + Tsky)*(x(2)^2 + Tsky^2);
@@ -311,7 +311,7 @@ x2 = (tau_gla*alpha_cel*Is*beta + hcgmc*(x(1) - x(2)) - hccmt*(x(2) - x(3)))*(A_
 x3 = (A_mod*hccmt*(x(2) - x(3)) - A_tm*hctmm*(x(3) - x(5)) - A_tr*hctmr*(x(3) - x(4)))*(1/(M_ted*C_ted));
 
 %% for absorber : x(4)
-x4 = (A_tr*hctmr*(x(3) - x(4)) - A_rm*hcrmm*(x(4) - x(5)) - A_ri*hcrmi*(x(4) - x(7)))*(1/(M_abs*C_abs));
+x4 = (A_tr*hctmr*(x(3) - x(4)) - A_rm*hcrmm*(x(4) - x(5)) - A_ri*hcrmi*(x(4) - x(7)))*(1/(M_r*C_r));
 
 %% for tube : x(5)
 x5 = (A_tm*hctmm*(x(3) - x(5)) + A_rm*hcrmm*(x(4) - x(5)) - A_mi*hcmmi*(x(5) - x(7)) - A_mw_hvmmw*(x(5) - x(6)))*(1/(M_m*C_m));

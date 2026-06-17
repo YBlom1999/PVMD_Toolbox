@@ -1,4 +1,4 @@
-function [pvt_collector_output] = Simple_waterbased_PV_thermal(MODULE_output, WEATHER_output)
+function [pvt_collector_output] = Simple_waterbased_PV_thermal(~,MODULE_output, WEATHER_output)
 % Calculates the thermal and PV yield of simple_water-based PVT collector
 % (Rd)
 %
@@ -16,7 +16,7 @@ function [pvt_collector_output] = Simple_waterbased_PV_thermal(MODULE_output, WE
 % 
 % Developed by ZUA.
 
-I = mean(WEATHER_output.Irr,2)';
+I = mean(WEATHER_output.Irr{1},2)';
 Tam = [WEATHER_output.ambient_temperature]';
 L = MODULE_output.ML;
 W = MODULE_output.MW;
@@ -72,7 +72,7 @@ eta_tha(h_cw>10.*h_ca) = A_eff - h_ca*(w*W).*T_red(h_cw>10.*h_ca);
 eta_tha(eta_tha<0) = 0;
 
 % Total solar irradiance received by the PVT system in kWh/m^2/year
-total_I_sun = sum(mean(WEATHER_output.Irr,2))/1000; 
+total_I_sun = sum(mean(WEATHER_output.Irr{1},2))/1000; 
 % Average thermal efficiency
 etaSum = sum(eta_tha)/length(I1);
 % Average thermal efficiency

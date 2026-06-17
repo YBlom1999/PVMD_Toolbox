@@ -1,4 +1,4 @@
-function [CELL_output_new,ELECTRIC_output_new,k_dis,k_mois,k_LID,k_TC,Time,Rcon_new] = Degradation_single(TOOLBOX_input,MODULE_output,WEATHER_output,THERMAL_output,ELECTRIC_output,Parameters,CONSTANTS)
+function [CELL_output_new,ELECTRIC_output_new,k_dis,k_mois,k_LID,k_TC,Time,Rcon_new] = Degradation_single(TOOLBOX_input,MODULE_output,WEATHER_output,THERMAL_output,ELECTRIC_output)
 %Degradation_single file for the degradation module of single junction
 %modules
 %
@@ -17,10 +17,6 @@ function [CELL_output_new,ELECTRIC_output_new,k_dis,k_mois,k_LID,k_TC,Time,Rcon_
 %   Simulation results of the THERMAL module
 % ELECTRIC_output : struct
 %   Simulation results of the ELECTRIC module
-% Parameters : double
-%   The parameters of the degradation mechanisms
-% CONSTANTS : double
-%   Physical constants
 %
 % Returns
 % -------
@@ -44,17 +40,17 @@ function [CELL_output_new,ELECTRIC_output_new,k_dis,k_mois,k_LID,k_TC,Time,Rcon_
 % Developed by by Youri Blom
 
 %Degradation parameters
-A_mois = Parameters.A_mois;
-C_mois = Parameters.C_mois;
-Ea_mois = Parameters.Ea_mois;
-A_dis = Parameters.A_dis;
-Ea_dis = Parameters.Ea_dis;
-factor_max = Parameters.factor_max;
-C_LID = Parameters.C_LID;
-A_TC = Parameters.A_TC;
-Ea_TC = Parameters.Ea_TC;
-n_TC = Parameters.n_TC;
-b_TC = Parameters.b_TC;
+A_mois = TOOLBOX_input.Degradation.A_mois;
+C_mois = TOOLBOX_input.Degradation.C_mois;
+Ea_mois = TOOLBOX_input.Degradation.Ea_mois;
+A_dis = TOOLBOX_input.Degradation.A_dis;
+Ea_dis = TOOLBOX_input.Degradation.Ea_dis;
+factor_max = TOOLBOX_input.Degradation.factor_max;
+C_LID = TOOLBOX_input.Degradation.C_LID;
+A_TC = TOOLBOX_input.Degradation.A_TC;
+Ea_TC = TOOLBOX_input.Degradation.Ea_TC;
+n_TC = TOOLBOX_input.Degradation.n_TC;
+b_TC = TOOLBOX_input.Degradation.b_TC;
 
 %Module parameters
 numCells = MODULE_output.N;
@@ -69,10 +65,10 @@ Jph_repeat = repmat(CONSTANTS.q*mean(WEATHER_output.J{1},2),[N_years,1])';
 
 %Calculate degradation rates
 Time = 1:N_years*8760;
-[k_dis,CELL_output_new,MODULE_output_new,WEATHER_output_new,THERMAL_output_new] = DegDiscoloration(TOOLBOX_input,T_repeat,UV_repeat,A_dis,Ea_dis,CONSTANTS);
-[k_mois] = DegMoistureIngress(WEATHER_output_new,THERMAL_output_new,ELECTRIC_output,TOOLBOX_input,T_repeat,Ea_mois,A_mois,C_mois,Time,CONSTANTS);
-[k_LID,factor_LID] = DegLID(ELECTRIC_output,Jph_repeat,factor_max,C_LID,Time,CONSTANTS);
-[k_TC,Rcon_new] = DegThermalCycling(ELECTRIC_output,T_repeat,A_TC,Ea_TC,n_TC,b_TC,Time,Rcon,numCells,CONSTANTS);
+[k_dis,CELL_output_new,MODULE_output_new,WEATHER_output_new,THERMAL_output_new] = DegDiscoloration(TOOLBOX_input,T_repeat,UV_repeat,A_dis,Ea_dis);
+[k_mois] = DegMoistureIngress(TOOLBOX_input,T_repeat,Ea_mois,A_mois,C_mois,Time);
+[k_LID,factor_LID] = DegLID(ELECTRIC_output,Jph_repeat,factor_max,C_LID,Time,TOOLBOX_input.constants);
+[k_TC,Rcon_new] = DegThermalCycling(ELECTRIC_output,T_repeat,A_TC,Ea_TC,n_TC,b_TC,Time,Rcon,numCells,TOOLBOX_input.constants);
 
 TOOLBOX_input_new = TOOLBOX_input;
 

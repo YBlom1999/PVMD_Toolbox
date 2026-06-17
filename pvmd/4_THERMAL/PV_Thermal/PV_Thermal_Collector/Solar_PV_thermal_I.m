@@ -1,4 +1,4 @@
-function [pvt_collector_output] = Solar_PV_thermal_I(~, WEATHER_output)
+function [pvt_collector_output] = Solar_PV_thermal_I(~,~, WEATHER_output)
 % Calculates the thermal and PV yield of PVT collector with unique coefficients
 % Thermo photovoltaic collector - pap-I - 5.1 m2
 %
@@ -26,7 +26,7 @@ C_f = 4186;                     % specific heat (J/kg°C)
 e1a = 0.3269;                   % unique coefficient W/(m2K) 
 etao_ele = 0.1286;              % unique coefficient
 
-I = mean(WEATHER_output.Irr,2)';
+I = mean(WEATHER_output.Irr{1},2)';
 Tam = [WEATHER_output.ambient_temperature]';
 
 idx = find(I~=0);                % find the indices of non-zero elements in I
@@ -62,9 +62,11 @@ Tmean = (T_i + Two) ./ 2;
 NOCT = 48;                       % typical module at 48°C (best module operated at a NOCT of 33°C, the worst at 58°C)
 S = I*0.1;                       % insolation in mW/cm^2
 Tc = Tam + S*(NOCT - 20)/80;
+% Tc_pv = 30 + 0.0175*(I - 300) + 1.14*(Tam - 25);
+% Tc = Tc_pv + ((T_i + Two)/2 - Tam);
 
 % Total solar irradiance received by the PVT system in kWh/m^2/year
-total_I_sun = sum(mean(WEATHER_output.Irr,2))/1000; 
+total_I_sun = sum(mean(WEATHER_output.Irr{1},2))/1000; 
 % Average thermal efficiency
 etaSum = sum(eta_tha)/length(I1);
 % Average electrical efficiency
@@ -88,7 +90,7 @@ pvt_collector_output.total_electrical_output=total_electrical_output;
 
 %% Plot results
 period=WEATHER_output.Period;
-Irr = mean(WEATHER_output.Irr,2);
+Irr = mean(WEATHER_output.Irr{1},2);
 ambient_temperature = WEATHER_output.ambient_temperature;
 
 time = length(Irr);

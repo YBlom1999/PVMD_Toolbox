@@ -1,4 +1,4 @@
-function [Tcell] = cellTempCalcSandia(T_amb,WS,Gm,thermal)
+function [T_cell] = cellTempCalcSandia(T_amb,WS,Gm,settings)
 %cellTempCalcFaiman Calculates the temperature of the cell with the
 %Faiman model.
 % This function calculates the temperature of the cell with the
@@ -12,20 +12,20 @@ function [Tcell] = cellTempCalcSandia(T_amb,WS,Gm,thermal)
 %   Windspeed
 % Gm : double
 %   incoming irradiance in the module
-% thermal : struct
+% settings : struct
 %   the input of the thermal model
 %
 % Returns
 % -------
-% Tcell : double
+% T_cell : double
 %   The cell temperature
 %
 % Developed by A. Calcabrini
 % Implemented in the Toolbox by Y. Blom
 
-a = thermal.a;
-b = thermal.b;
+a = settings.a;
+b = settings.b;
 
-Tcell = Gm.*exp(a+b*WS)+T_amb;
+T_cell = Gm.*exp(a+b*WS)+T_amb;
 
 end

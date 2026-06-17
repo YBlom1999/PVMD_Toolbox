@@ -249,4 +249,10 @@ if Plot_type == 4
     if min(xb)< -2
         xlim(result_plot,[-5, 40])
         rectangle(result_plot,'position',[11 -11.3 18 7.5],'LineWidth',1.5)
-    e
+    else
+        xlim(result_plot,[-2, 50])
+        rectangle(result_plot,'position',[3 -11.5 53 8],'LineWidth',1.5)
+        text(result_plot,50,-7.6,text_result_groups,'vert','middle','horiz','center','FontSize',15,'FontName', 'Helvetica')
+    end
+end
+end

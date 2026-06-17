@@ -1,26 +1,47 @@
-function [V_module,I,parameters_1, parameters_2] = TandemModule(TOOLBOX_input,numCells, Acell,T_,J_,Jph_STC,SubMod_ind,Losses) %Changed by youri
-%%cordiantes the the tranistion from Temperatures, Generated current to
-%over cell IV curves to module IV curves
-%Author: Malte Vogt
+function [V_module,I,parameters_1, parameters_2,indDiode] = TandemModule(TOOLBOX_input,numCells, Acell,Temp,Jabs,Irr,SubMod_ind)
+% TandemModule calculates the electrical performance of a tandem module
+% and can simulate 2T, 3T, and 4T modules
+%
+% Parameters
+% ----------
+% TOOLBOX_input : struct
+%   Simulation parameters
+% numCells : double
+%   The number of cells
+% Acell: double
+%   The area of the cell
+% Temp: double
+%   The temperature of all cells
+% Jabs: double
+%   The absorbed current in all cells
+% Irr : double
+%   The received irradiance of all cells
+% Submod_ind : double
+%   The index of in which submodules, the cells are located
+%
+% Returns
+% -------
+% V_module : double
+%   The voltage of the module IV curve
+% I : double
+%   The current of the module IV curve
+% parameters_1 : double
+%   The parameters of the equivalent circuit of the top cell
+% parameters_2 : double
+%   The parameters of the equivalent circuit of the bottom cell
+% indDiode : double
+%   The index of which bypass diodes are active
+%
+% Written by M. R. Vogt
+% Adjusted by Y. Blom
 
 %% Determine the necessary current range for the IV curves
-
-%Account for Isc given in data sheet model
-if TOOLBOX_input.electric.runDatasheet
-    JscGenPro=Jph_STC;
-    Conv_top=TOOLBOX_input.electric.datasheetValuesTop(2)/(JscGenPro(1)*Acell); 
-    Conv_bot=TOOLBOX_input.electric.datasheetValuesBot(2)/(JscGenPro(2)*Acell);
-    Conv_Datasheet_GenPro=max(Conv_top,Conv_bot);
-else
-    Conv_Datasheet_GenPro=1;
-end    
-
 
 %maximum simulation current
 N_submodules = length(Acell);
 Imax = 0;
 for Submod_i = 1:N_submodules
-    Imax_new = max(J_{Submod_i},[],'all')*Acell(Submod_i)*Conv_Datasheet_GenPro*1.05;
+    Imax_new = max(Jabs{Submod_i},[],'all')*Acell(Submod_i)*1.05;
     Imax = max(Imax,Imax_new);
 end
 %Resolution of the IV curve in A
@@ -31,45 +52,67 @@ I=0:5e-3:Imax;
 %% Calculate cell IVs
 Mod_ind = SubMod_ind(1); %Index of submodule
 Cell_ind = sum(SubMod_ind(1:1)==Mod_ind); %Index of cell in submodule
-if TOOLBOX_input.electric.runDatasheet
-    [V_1,day,night,parameters_1] = Module_Datasheet(Acell(Mod_ind),J_{Mod_ind}(:,:,Cell_ind),T_{Mod_ind},TOOLBOX_input.electric.shading(Mod_ind),...
-        numCells(Mod_ind),I, TOOLBOX_input.electric.datasheetValuesTop); %Changed by Youri
-else
-    [V_1,day,night,parameters_1] = Simulated_IV(Acell(Mod_ind),J_{Mod_ind}(:,:,Cell_ind),T_{Mod_ind}, TOOLBOX_input.electric.shading(Mod_ind),...
-        numCells(Mod_ind),I, TOOLBOX_input.electric.IVtypeTop,TOOLBOX_input.electric,2,Losses); %Changed by youri
-end
+Shading = TOOLBOX_input.electric.shading(Mod_ind);
+IVtype = TOOLBOX_input.electric.IVtypeTop;
+[V_1,day1,night1,parameters_1] = Simulated_IV(TOOLBOX_input,Acell(Mod_ind),numCells(Mod_ind),Shading,IVtype,Jabs{Mod_ind}(:,:,Cell_ind),Temp{Mod_ind},Irr,...
+    I, 1,TOOLBOX_input.electric.degtype(1));
+
 
 Mod_ind = SubMod_ind(2); %Index of submodule
 Cell_ind = sum(SubMod_ind(1:2)==Mod_ind); %Index of cell in submodule
-if TOOLBOX_input.electric.runDatasheet
-    [V_2,day,night,parameters_2] = Module_Datasheet(Acell(Mod_ind),J_{Mod_ind}(:,:,Cell_ind),T_{Mod_ind},TOOLBOX_input.electric.shading(Mod_ind),...
-        numCells(Mod_ind),I, TOOLBOX_input.electric.datasheetValuesBot); %Changed by Youri
-else
-    [V_2,day,night,parameters_2] = Simulated_IV(Acell(Mod_ind),J_{Mod_ind}(:,:,Cell_ind),T_{Mod_ind}, TOOLBOX_input.electric.shading(Mod_ind),...
-        numCells(Mod_ind),I, TOOLBOX_input.electric.IVtypeBot,TOOLBOX_input.electric,1,Losses); %Changed by youri
+Shading = TOOLBOX_input.electric.shading(Mod_ind);
+IVtype = TOOLBOX_input.electric.IVtypeBot;
+[V_2,day2,night2,parameters_2] = Simulated_IV(TOOLBOX_input,Acell(Mod_ind),numCells(Mod_ind),Shading,IVtype,Jabs{Mod_ind}(:,:,Cell_ind),Temp{Mod_ind},Irr,...
+    I, 2,TOOLBOX_input.electric.degtype(2));
+
+
+
+%% Compare day and night for both cells and give warning if necessary
+if ~isequal(day1,day2) || ~isequal(night1,night2)
+    warning('The calculated days and nights are not the same') 
 end
-
-
-%% To Do: Compare day and night for both cells and give warning if necessary
-
-
+day = day1;
+night = night1;
 
 %% Calculate modules IV
 R_int = TOOLBOX_input.electric.resistance;
-LC_eff = TOOLBOX_input.electric.LC_eff;
-N_by = TOOLBOX_input.electric.numBypassDiodes;
+effLC = TOOLBOX_input.electric.LC_eff;
+Nby = TOOLBOX_input.electric.numBypassDiodes;
 
 
 if TOOLBOX_input.electric.Terminals==2
-    [V_module] = combineToModuleIV_2Terminal(V_1,V_2,N_by,numCells,I,day,night,R_int,LC_eff);
+    V_2 = includeLumCouplingTandem(V_1,nan,V_2,I,effLC);
+    V_tan = V_1+V_2-R_int*I;
+    
+    if strcmp(TOOLBOX_input.electric.ModuleType,'Series')
+        [V_module,I,indDiode] = connectCells2ModuleSeries(V_tan,Nby,numCells,I,day,night);
+    elseif strcmp(TOOLBOX_input.electric.ModuleType,'Butterfly')
+        [V_module,I,indDiode] = connectCells2ModuleButterfly(TOOLBOX_input,V_tan,Nby,numCells,I,day,night);
+    end
 elseif TOOLBOX_input.electric.Terminals==3
-    %3Terminal cells are in connected in parallel, thus hihger currents are
-    %possible
-    [V_module,I] = combineToModuleIV_3Terminal_literature(V_1,V_2,N_by,...
-    numCells,I,day,night,R_int,TOOLBOX_input.electric.configuration, ...
-    TOOLBOX_input.electric.VM_ratio_m,TOOLBOX_input.electric.VM_ratio_n);
-elseif TOOLBOX_input.electric.Terminals==4
-    [V_module] = combineToModuleIV_4Terminal(V_1,V_2,N_by,numCells,I,day,night,R_int);
-end    
+    VM_ratio_m = TOOLBOX_input.electric.VM_ratio_m;
+    VM_ratio_n = TOOLBOX_input.electric.VM_ratio_n;
+    configuration = TOOLBOX_input.electric.configuration;
 
+    V_1 = V_1 - R_int(1)*I;
+    V_2 = V_2 - R_int(2)*I;
+    [V_module,I] = combineToModuleIV_3Terminal_literature(V_1,V_2,Nby,...
+    numCells,I,day,night,configuration,VM_ratio_m,VM_ratio_n);
+elseif TOOLBOX_input.electric.Terminals==4
+    V_1 = V_1 - R_int(1)*I;
+    if strcmp(TOOLBOX_input.electric.ModuleType{1},'Series')
+        [V_module1,I,indDiode1] = connectCells2ModuleSeries(V_1,Nby(1),numCells(1),I,day1,night1);
+    elseif strcmp(TOOLBOX_input.electric.ModuleType{1},'ButterFly')
+        [V_module1,I,indDiode1] = connectCells2ModuleButterfly(TOOLBOX_input,V_1,Nby(1),numCells(1),I,day1,night1);
+    end
+    V_2 = V_2 - R_int(2)*I;
+    if strcmp(TOOLBOX_input.electric.ModuleType{2},'Series')
+        [V_module2,I,indDiode2] = connectCells2ModuleSeries(V_2,Nby(2),numCells(2),I,day2,night2);
+    elseif strcmp(TOOLBOX_input.electric.ModuleType{2},'ButterFly')
+        [V_module2,I,indDiode2] = connectCells2ModuleButterfly(TOOLBOX_input,V_2,Nby(2),numCells(2),I,day2,night2);
+    end
+
+    V_module=[V_module1;V_module2];
+    indDiode=[indDiode1;indDiode2];
+end
 end

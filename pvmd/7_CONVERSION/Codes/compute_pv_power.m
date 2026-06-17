@@ -1,4 +1,4 @@
-function [system, string] = compute_pv_power(module,inverter,periodic)
+function [system, string] = compute_pv_power(module,inverter,periodic,modCon)
 %Compute the system PV power considering the distribution of modules
 %
 % Parameters
@@ -7,8 +7,10 @@ function [system, string] = compute_pv_power(module,inverter,periodic)
 %   Electrical parameters at module level
 % inverter : struct
 %   User inputs related to the inverter characteristics
-% simulation : struct
-%   Details of the simulation
+% periodic : struct
+%   Indicator whether the script is run periodic or non-periodic
+% modCon: struct
+%   Overview of the string connection of the modules
 %
 % Returns
 % -------
@@ -52,12 +54,11 @@ else
     system.current_STC = module.current_STC';
     system.voltage_STC = module.voltage_STC';
     if contains(['STR','CEN','POW-OPT'],inverter.type)
-        comb = combinations(inverter.num_strings,inverter.num_modules);
         string.power = cell(inverter.num_strings,1);
         string.voltage = cell(inverter.num_strings,1);
         string.current = cell(inverter.num_strings,1);
         for i = 1:inverter.num_strings
-            comb_str = comb(i,:);
+            comb_str = modCon{i};
             [string.power{i}, string.voltage{i}] = mismatch(...
                 system.voltage,...
                 system.current,...
@@ -74,7 +75,8 @@ else
         string.voltage_STC = cell(inverter.num_strings,1);
         string.current_STC = cell(inverter.num_strings,1);
         for i = 1:inverter.num_strings
-            comb_str = comb(i,:);
+            %comb_str = comb(i,:);
+            comb_str = modCon{i};
             [string.power_STC{i}, string.voltage_STC{i}] = mismatch(...
                 system.voltage_STC,...
                 system.current_STC,...
@@ -99,38 +101,6 @@ else
     end
 end
 
-end
-
-
-function comb = combinations(sz,nummod)
-% Output indices of panels present in a string
-%
-% Parameters
-% ----------
-% sz : double
-%   number of strings in the system
-% nummod :double
-%   number of modules in the system
-%
-% Returns
-% -------
-% comb : double
-%   panel indices of a single string for string selection. Each row has the
-%   indices of panels in a string
-%
-% Author: K Ganapathi Subramanian
-
-if round(nummod/sz) ~= nummod/sz
-   error('Division to %d strings not possible!',sz); 
-elseif sz == 1
-   comb = 1:nummod;
-elseif sz == nummod
-    %micro-inverter case
-    comb = (1:nummod)';
-else
-    s = 1:nummod;
-    comb = (reshape(s,nummod/sz,sz))';
-end
 end
 
 
@@ -165,10 +135,10 @@ Idc_mpp = Idc_mpp(:,comb);
 [I,idx1] = sort(Idc_mpp,2,'descend');
 V = zeros(size(Vdc_mpp));
 % Sort voltages as per sorted current index
-for k = 1:size(Vdc_mpp,1)
-    for l = 1:size(Vdc_mpp,2)
-        m = idx1(k,l);
-        V(k,l) = Vdc_mpp(k,m);
+for time_i = 1:size(Vdc_mpp,1)
+    for string_i = 1:size(Vdc_mpp,2)
+        m = idx1(time_i,string_i);
+        V(time_i,string_i) = Vdc_mpp(time_i,m);
     end
 end
 % Find cumulative string voltage and power from each module

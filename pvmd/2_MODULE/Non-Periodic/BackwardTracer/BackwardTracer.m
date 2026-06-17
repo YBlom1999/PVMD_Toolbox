@@ -1,4 +1,4 @@
-function [SM,V_sky,F_sky,azimuth,zenith,A_sky] = BackwardTracer(vertices,faces,nCells,cellCorners,normalSolarCell,reflectivity,Scattering,RT)
+function [SM,V_sky,F_sky,azimuth,zenith,A_sky] = BackwardTracer(vertices,faces,nCells,cellCorners,normalSolarCell,reflectivity,Scattering,RT,settings)
 %BackwardTracer performers a backward tracing, based on the method from A.
 %Calcabrini
 %
@@ -24,6 +24,8 @@ function [SM,V_sky,F_sky,azimuth,zenith,A_sky] = BackwardTracer(vertices,faces,n
 %   reflection
 % RT: struct
 %   The optical properties of the solar cell
+% settings: struct
+%   The settings for the backward raytracer
 %
 % Returns
 % -------
@@ -74,24 +76,44 @@ tiltsSolarCell = acosd(normalSolarCell(3,:));
 azimsSolarCell = atan2d(normalSolarCell(1,:),normalSolarCell(2,:));azimsSolarCell = azimsSolarCell+(azimsSolarCell<0)*360; %degrees East from North
 
 %% Sky discretization: Define the number of rays for the simulations (MODIFY AT YOUR CONVENIENCE)
-N_refinement = 3;
 % Make sky dome
-[V_sky,F_sky,A_sky,~,zenith,azimuth] = icohemisphere(N_refinement,1);
+[V_sky,F_sky,A_sky,~,zenith,azimuth] = icohemisphere(settings.N_refinement_normal,1);
 
-% Generate primary rays
-[~,~,~,r1,~,~] = icohemisphere(N_refinement,0);
-if size(r1,2)==3; r1=r1'; end
-r1_upper = r1(3,:)>0;
+% Generate rays
+if settings.reducedRays
+    [~,~,~,r1,~,~] = icohemisphere(settings.N_refinement_normal,1);
+    if size(r1,2)==3; r1=r1'; end
+    r1_upper = r1(3,:)>0;
+    r1 = single(r1./sqrt(sum(r1.^2)));%normalize rays
+    Nrays_up = length(r1);
+    [~,~,~,r1_gr,~,~] = icohemisphere(settings.N_refinement_reduced,0);
+    if size(r1_gr,2)==3; r1_gr=r1_gr'; end
 
-r1 = single(r1./sqrt(sum(r1.^2)));%normalize rays
-% r1 are the primary rays referenced to the origin [0;0;0]
-% omega_sp is the solid angle of each sky patch
+    r1_gr = single(r1_gr./sqrt(sum(r1_gr.*r1_gr)));%normalize rays
+    r1_gr_lower = r1_gr(3,:)<0;
+    r1_gr = r1_gr(:,r1_gr_lower); %only use rays casted to the ground
 
-% Generate secondary rays for second generation with possibly different angular resolution
-[~,~,~,r2,~,~] = icohemisphere(N_refinement,0);
-if size(r2,2)==3; r2=r2'; end
-r2_upper = r2(3,:)>0;
-r2 = single(r2./sqrt(sum(r2.*r2)));%normalize rays
+    r1 = [r1, r1_gr];
+
+    % Generate secondary rays for second generation with possibly different angular resolution
+    [~,~,~,r2,~,~] = icohemisphere(settings.N_refinement_reduced,0);
+
+    if size(r2,2)==3; r2=r2'; end
+    r2_upper = r2(3,:)>0;
+    r2 = single(r2./sqrt(sum(r2.*r2)));%normalize rays
+else
+    [~,~,~,r1,~,~] = icohemisphere(settings.N_refinement_normal,0);
+    if size(r1,2)==3; r1=r1'; end
+    r1_upper = r1(3,:)>0;
+    r1 = single(r1./sqrt(sum(r1.^2)));%normalize rays
+
+    % Generate secondary rays for second generation with possibly different angular resolution
+    [~,~,~,r2,~,~] = icohemisphere(settings.N_refinement_normal,0);
+
+    if size(r2,2)==3; r2=r2'; end
+    r2_upper = r2(3,:)>0;
+    r2 = single(r2./sqrt(sum(r2.*r2)));%normalize rays
+end
 
 %% Ray-trace
 SM = zeros(size(F_sky,1),nCells,nLayers,length(EQE_wav));
@@ -124,6 +146,14 @@ for iCell=1:nCells
     nr1Fwd = sum(r1CellFwdFlag);%Number of primary rays to be cast
     r1CellFwd = r1(:,r1CellFwdFlag);%Primary rays towards the front of the solar cell
     r1CellFwdCosAoi = r1CellCosAoi(r1CellFwdFlag);
+
+    if settings.reducedRays
+        nrFwd_up = sum(r1CellFwdFlag(1:Nrays_up));
+        r1_refinement = settings.N_refinement_normal*ones(1,nrFwd_up);
+        nrFwd_down = sum(r1CellFwdFlag(Nrays_up+1:end));
+        r3_refinement = settings.N_refinement_reduced*ones(1,nrFwd_down);
+        rp_refinement = [r1_refinement r3_refinement];
+    end
     
     % select data type based on size Scene
     if N_faces<= 2^16-1
@@ -177,6 +207,7 @@ for iCell=1:nCells
         albedo = reflectivity(iIntxnPlaneR1(iInt1),:);
         r1cosAOI = r1CellFwdCosAoi(indexInt(iInt1));
         [~,ind_AOI] = min(abs(acosd(r1cosAOI)-EQE_angles));
+        
         if Scattering(iIntxnPlaneR1(iInt1))%Secondary rays are cast only for diffuse surfaces
             r2WallCosAoi = sum(r2.*intxnPlaneNormal(:,iInt1));%angle between the secondary rays and the normal to the wall
             r2WallFwdFlag = r2WallCosAoi>0;
@@ -195,8 +226,15 @@ for iCell=1:nCells
             
             sensitivity_fullSphere = ones(length(albedo),nLayers,length(r2))*r1cosAOI.*EQE_full(:,1:nLayers);
             sensitivity_fullSphere(:,:,~r2EscFlag_full) = 0;
-            
-            SM(:,iCell,:,:) = squeeze(SM(:,iCell,:,:))+permute(albedo'.*sensitivity_fullSphere(:,:,r2_upper)/sum(r2WallFwdFlag),[3,2,1]);
+
+            if settings.reducedRays
+                rp_weight = rp_refinement(indexInt(iInt1));
+                reflection = permute(albedo'.*sensitivity_fullSphere(:,:,r2_upper)/sum(r2WallFwdFlag),[3,2,1]);
+                r2_to_r1 = repelem(reflection./(4^(settings.N_refinement_normal-settings.N_refinement_reduced)),4^(settings.N_refinement_normal-settings.N_refinement_reduced),1,1);
+                SM(:,iCell,:,:) = squeeze(SM(:,iCell,:,:))+(4^(settings.N_refinement_normal-rp_weight))*r2_to_r1;
+            else
+                SM(:,iCell,:,:) = squeeze(SM(:,iCell,:,:))+permute(albedo'.*sensitivity_fullSphere(:,:,r2_upper)/sum(r2WallFwdFlag),[3,2,1]);
+            end
             
         else %Ideally specular reflections
             %Find the intersecting point on the mirror and the normal of the mirror
@@ -219,15 +257,18 @@ for iCell=1:nCells
                     
                     EQE_full = squeeze(EQE(:,ind_AOI,:));
                     EQE_full(:,1) = (1-EQE(:,ind_AOI,1)-EQE(:,ind_AOI,end));
-                    
-                    SM(iNearest,iCell,:,:) = squeeze(SM(iNearest,iCell,:,:))+albedo.*r1cosAOI.*EQE_full(:,1:nLayers)';
-                    
+
+                    if settings.reducedRays
+                        rp_weight = rp_refinement(indexInt(iInt1));
+                        SM(iNearest,iCell,:,:) = squeeze(SM(iNearest,iCell,:,:))+4^(settings.N_refinement_normal-rp_weight)*albedo.*r1cosAOI.*EQE_full(:,1:nLayers)';
+                    else                  
+                        SM(iNearest,iCell,:,:) = squeeze(SM(iNearest,iCell,:,:))+albedo.*r1cosAOI.*EQE_full(:,1:nLayers)';
+                    end                    
                 end
             end
         end
     end
 end
-
 
 function [int_point,tri_ix,min_dist] = solveTrianglesRaysIntersections(vert1Triangle,vert2Triangle,vert3Triangle,rayOrg,rayEnd,iInPlane)
 % solveTrianglesRaysIntersections calculates the closest intersecting points 

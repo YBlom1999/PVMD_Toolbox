@@ -8,7 +8,7 @@ S.Imc = 0.5;        %minimum intensity of ray before switching to Monte-Carlo mo
 S.mx_g = 100;       %maximum generation of ray before termination (OLD RAYS)
 
 %---plot settings---
-S.plt = 1;          %0 = plot b&w geometry,
+S.plt = 0;          %0 = plot b&w geometry,
                     %1 = plot output (calculated sensitivity) as color in geometry
                     %2 = plot b&w geometry with rays*
 %* rays will not show in parallel computation

@@ -59,3 +59,8 @@ else
         title(subplot_title);
         ylabel('Efficiency [%]'); xlabel('Time [h]');
         set(gca,'Fontsize',12);
+    end
+end
+set(gcf, 'Position', [200 200 1200, 600]);
+
+end

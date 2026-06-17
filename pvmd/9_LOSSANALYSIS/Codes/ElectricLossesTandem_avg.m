@@ -1,4 +1,4 @@
-function [P_series,P_shunt,P_NRRI,P_NRRV,PowerRatio] = ElectricLossesTandem_avg(Elec_Losses_input,TOOLBOX_input,MODULE_output,CONSTANTS)
+function [P_series,P_shunt,P_NRRI,P_NRRV,PowerRatio] = ElectricLossesTandem_avg(Elec_Losses_input,TOOLBOX_input,MODULE_output)
 %ElectricLossesTandem_avg Calculates the electrical losses of the system
 % with tandem modules.
 %
@@ -13,8 +13,6 @@ function [P_series,P_shunt,P_NRRI,P_NRRV,PowerRatio] = ElectricLossesTandem_avg(
 %   Simulation parameters
 % MODULE_output : struct
 %   Simulation results of the MODULE module
-% CONSTANTS : struct
-%   Physical constants
 %
 % Returns
 % -------
@@ -39,10 +37,6 @@ V_opt2 = Elec_Losses_input.V_opt2;
 Parameters1 = Elec_Losses_input.Parameters1;
 Parameters2 = Elec_Losses_input.Parameters2;
 T_cell = Elec_Losses_input.T_cell;
-
-% constants
-q = CONSTANTS.q;
-k = CONSTANTS.k;
 
 N_cells = MODULE_output.N;
 correction1 = I_abs1'-mean(Parameters1(:,:,1));
@@ -71,44 +65,48 @@ for i = 1:N_cells
     Rsh2 = Parameters2(i,:,3)';
     n2 = Parameters2(i,:,4)';
     I02 = Parameters2(i,:,5)';
-    [I_mpp1, V_mpp1] =  MPPfinder(Iph1,Rs1,Rsh1,n1,I01,T_cell);
-    [I_mpp2, V_mpp2] =  MPPfinder(Iph2,Rs2,Rsh2,n2,I02,T_cell);
+    [I_mpp1, V_mpp1] =  MPPfinder(TOOLBOX_input,Iph1,Rs1,Rsh1,n1,I01,T_cell);
+    [I_mpp2, V_mpp2] =  MPPfinder(TOOLBOX_input,Iph2,Rs2,Rsh2,n2,I02,T_cell);
     V_mpp1(isnan(I_mpp1)) = 0;
     I_mpp1(isnan(I_mpp1)) = 0;
     V_mpp2(isnan(I_mpp2)) = 0;
     I_mpp2(isnan(I_mpp2)) = 0;
 
-    PowerRatio = (I_mpp1.*V_mpp1)'./(I_mpp1.*V_mpp1+I_mpp2.*V_mpp2)';
+    PowerRatio = (I_mpp1.*V_mpp1)./(I_mpp1.*V_mpp1+I_mpp2.*V_mpp2);
     PowerRatio(isnan(PowerRatio)) = 0;
 
-    V_series1 = I_mpp1.*Rs1';
-    V_series2 = I_mpp1.*Rs2';
+    V_series1 = I_mpp1.*Rs1;
+    V_series2 = I_mpp1.*Rs2;
 
     V_NRRV1 = V_opt1-V_mpp1-V_series1;
     V_NRRV2 = V_opt2-V_mpp2-V_series2;
 
-    I_shunt1 = (V_mpp1+I_mpp1*Rs1)./Rsh1';
-    I_shunt2 = (V_mpp2+I_mpp1*Rs2)./Rsh2';
+    I_shunt1 = (V_mpp1+I_mpp1.*Rs1)./Rsh1;
+    I_shunt2 = (V_mpp2+I_mpp1.*Rs2)./Rsh2;
     I_shunt1(isnan(I_shunt1)) = 0;
     I_shunt2(isnan(I_shunt2)) = 0;
     I_shunt1(isinf(I_shunt1)) = 0;
     I_shunt2(isinf(I_shunt2)) = 0;
 
-    I_NRRI1 = (Iph1'-I_mpp1-I_shunt1);
-    I_NRRI2 = (Iph2'-I_mpp2-I_shunt2);
+    I_NRRI1 = (Iph1-I_mpp1-I_shunt1);
+    I_NRRI2 = (Iph2-I_mpp2-I_shunt2);
 
-    P_series1(:,i) = I_mpp1'.*V_series1';
-    P_series2(:,i) = I_mpp2'.*V_series2';
+    P_series1(:,i) = I_mpp1.*V_series1;
+    P_series2(:,i) = I_mpp2.*V_series2;
 
-    P_shunt1(:,i) = I_shunt1'.*(V_mpp1+V_series1)';
-    P_shunt2(:,i) = I_shunt2'.*(V_mpp2+V_series2)';
+    P_shunt1(:,i) = I_shunt1.*(V_mpp1+V_series1);
+    P_shunt2(:,i) = I_shunt2.*(V_mpp2+V_series2);
 
-    P_NRRV1(:,i) = V_NRRV1'.*Iph1;
-    P_NRRV2(:,i) = V_NRRV2'.*Iph2;
+    P_NRRV1(:,i) = V_NRRV1.*Iph1;
+    P_NRRV2(:,i) = V_NRRV2.*Iph2;
 
-    P_NRRI1(:,i) = I_NRRI1'.*(V_mpp1+V_series1)';
-    P_NRRI2(:,i) = I_NRRI2'.*(V_mpp2+V_series2)';
+    P_NRRI1(:,i) = I_NRRI1.*(V_mpp1+V_series1);
+    P_NRRI2(:,i) = I_NRRI2.*(V_mpp2+V_series2);
 
 
 end
-P_series = sum(P_series1+P_seri
+P_series = sum(P_series1+P_series2,2);
+P_shunt = sum(P_shunt1+P_shunt2,2);
+P_NRRV = sum(P_NRRV1+P_NRRV2,2);
+P_NRRI = sum(P_NRRI1+P_NRRI2,2);
+end

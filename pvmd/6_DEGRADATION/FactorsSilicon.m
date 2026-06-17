@@ -1,7 +1,8 @@
 function [factors] = FactorsSilicon(Parameters,k_needed,T,filename)
 %FactorsSilicon file for the degradation module of tandem modules
 %
-% This function calculates the degradation rate of a tandem module
+% This function calculates the factors for a silicon cell that should be
+% used in the electrical simulation
 % 
 %
 % Parameters
@@ -26,9 +27,16 @@ K=1.3806e-23;
 q=1.6022e-19;
 Vth=K*T/q;
 
-[~,~,data_folder] = get_folder_structure;
-filename_path =fullfile(data_folder,'Degradation','MoistureIngress',filename);
-load(filename_path,'Dosage','trend_I0','trend_Iph','trend_Rs','trend_Rsh','trend_n');
+%Load Data file
+MoistureIngressFilePath = [filename,'.xlsx'];
+MoistureIngressData = readcell(MoistureIngressFilePath,"Sheet","TrendElectricalParameters","Range","A2:F302");
+Dosage = cell2mat(MoistureIngressData(:,1));
+trend_Iph = cell2mat(MoistureIngressData(:,2));
+trend_I0 = cell2mat(MoistureIngressData(:,3));
+trend_n = cell2mat(MoistureIngressData(:,4));
+trend_Rsh = cell2mat(MoistureIngressData(:,5));
+trend_Rs = cell2mat(MoistureIngressData(:,6));
+
 
 Iph_orig = Parameters(1,1);
 Rs_orig = Parameters(1,2);
@@ -48,7 +56,7 @@ for i = 1:length(Dosage)
     n_new = n_orig*trend_n(i)/trend_n(1);
     
     z=(Rs_new*I0_new/(n_new*Vth*(1+Rs_new/Rsh_new)))*exp((Rs_new*(Iph_new+I0_new)+Voltage)./(n_new*Vth*(1+Rs_new/Rsh_new)));
-    I_new=(Iph_new+I0_new-Voltage/(Rsh_new))/(1+Rs_new/Rsh_new)-lambertw(z).*(n_new*Vth)/Rs_new;
+    I_new=(Iph_new+I0_new-Voltage/(Rsh_new))/(1+Rs_new/Rsh_new)-lambertw_pvmd(z).*(n_new*Vth)/Rs_new;
 
     P_range(i) = max(I_new.*Voltage);
     if i>1 && (P_range(i) > P_range(i-1))
@@ -57,14 +65,14 @@ for i = 1:length(Dosage)
 end
 P_loss_range = 1-P_range/P_range(1);
 [~,un_ind] = unique(P_loss_range);
-Dosage_needed = interp1(P_loss_range(un_ind),Dosage(un_ind),k_needed,'linear','extrap');
+Dosage_needed = interp1(P_loss_range(un_ind),Dosage(un_ind),k_needed);
 
 %Update the parameters
-factor_Iph = interp1(Dosage,trend_Iph,Dosage_needed,'linear','extrap')/interp1(Dosage,trend_Iph,0);
-factor_I0 = interp1(Dosage,trend_I0,Dosage_needed,'linear','extrap')/interp1(Dosage,trend_I0,0);
-factor_Rs = interp1(Dosage,trend_Rs,Dosage_needed,'linear','extrap')/interp1(Dosage,trend_Rs,0);
-factor_Rsh = interp1(Dosage,trend_Rsh,Dosage_needed,'linear','extrap')/interp1(Dosage,trend_Rsh,0);
-factor_n = interp1(Dosage,trend_n,Dosage_needed,'linear','extrap')/interp1(Dosage,trend_n,0);
+factor_Iph = interp1(Dosage,trend_Iph,Dosage_needed)/interp1(Dosage,trend_Iph,0);
+factor_I0 = interp1(Dosage,trend_I0,Dosage_needed)/interp1(Dosage,trend_I0,0);
+factor_Rs = interp1(Dosage,trend_Rs,Dosage_needed)/interp1(Dosage,trend_Rs,0);
+factor_Rsh = interp1(Dosage,trend_Rsh,Dosage_needed)/interp1(Dosage,trend_Rsh,0);
+factor_n = interp1(Dosage,trend_n,Dosage_needed)/interp1(Dosage,trend_n,0);
 
 factors = [factor_Iph,factor_Rs,factor_Rsh,factor_n,factor_I0];
 

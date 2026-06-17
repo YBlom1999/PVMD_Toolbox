@@ -1,4 +1,4 @@
-function [Tcell] = cellTempCalcDB(T_amb, WS,Gm,thermal)
+function [T_cell] = cellTempCalcDB(T_amb, WS,Gm,settings)
 %cellTempCalcDB Calculates the temperature of the cell with the
 %Duffie-Beckman model.
 % This function calculates the temperature of the cell with the
@@ -12,19 +12,19 @@ function [Tcell] = cellTempCalcDB(T_amb, WS,Gm,thermal)
 %   Windspeed
 % Gm : double
 %   incoming irradiance in the module
-% thermal : struct
-%   the input of the thermal model
+% settings : struct
+%   the inputsettings of the thermal model
 %
 % Returns
 % -------
-% Tcell : double
+% T_cell : double
 %   The cell temperature
 %
 % Developed by A. Calcabrini
 % Implemented in the Toolbox by Y. Blom
-T_NOCT = thermal.T_NOCT;
-cell_eff = thermal.cell_eff;
+T_NOCT = settings.T_NOCT;
+cell_eff = settings.cell_eff;
 
-Tcell = T_amb+(T_NOCT-20)/800.*Gm*9.5./(5.7+3.8*WS)*(1-cell_eff/0.9);
+T_cell = T_amb+(T_NOCT-20)/800.*Gm*9.5./(5.7+3.8*WS)*(1-cell_eff/0.9);
 
 end

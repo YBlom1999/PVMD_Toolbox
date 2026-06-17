@@ -24,14 +24,16 @@ function [k_pred,factor] = DegLID(ELECTRIC_output,Jph_abs,factor_max,C,Time,CONS
 % -------
 % k_pred: double
 %   The predicted degradation rate due to LID
+% factor: double
+%   The factor by which the saturation current density should be updated
 %
 % Developed by by Youri Blom
-k_b = CONSTANTS.k_b;
+k = CONSTANTS.k;
 q = CONSTANTS.q;
 T_STC = CONSTANTS.T_STC;
 
 Voltage = 0:0.01:0.9;
-Vth=k_b*T_STC/q;
+Vth=k*T_STC/q;
 
 Iph = ELECTRIC_output.Parameters_STC_1(1,1);
 Rs = ELECTRIC_output.Parameters_STC_1(1,2);
@@ -48,7 +50,7 @@ for i = 1:length(Time)
     I0 = I0_init/factor_tau;
 
     z=(Rs*I0/(n*Vth*(1+Rs/Rsh)))*exp((Rs*(Iph+I0)+Voltage)./(n*Vth*(1+Rs/Rsh)));
-    Current=(Iph+I0-Voltage/(Rsh))/(1+Rs/Rsh)-lambertw(z).*(n*Vth)/Rs;
+    Current=(Iph+I0-Voltage/(Rsh))/(1+Rs/Rsh)-lambertw_pvmd(z).*(n*Vth)/Rs;
     
     Pmpp(i) = max(Voltage.*Current);
     
