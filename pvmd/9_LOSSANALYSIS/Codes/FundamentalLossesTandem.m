@@ -64,7 +64,7 @@ h = TOOLBOX_input.constants.h;
 q = TOOLBOX_input.constants.q;
 c = TOOLBOX_input.constants.c;
 k = TOOLBOX_input.constants.k;
-T_S = TOOLBOX_input.constants.T_S;
+T_Sun = TOOLBOX_input.constants.T_Sun;
 
 %The wavelengths that are present at GENPRO are loaded
 wav_GENPRO = CELL_output.CELL_FRONT.wav;
@@ -101,8 +101,8 @@ elseif TOOLBOX_input.electric.Terminals ==4
     V_cell2 = V_mpp_cell(2);
 end
 
-V_opt1_ideal = E_g1*(1-T_cell/T_S)-k*T_cell/q*log(Angle_emit_Vopt/Angle_abs);
-V_opt2_ideal = E_g2*(1-T_cell/T_S)-k*T_cell/q*log(Angle_emit_Vopt/Angle_abs);
+V_opt1_ideal = E_g1*(1-T_cell/T_Sun)-k*T_cell/q*log(Angle_emit_Vopt/Angle_abs);
+V_opt2_ideal = E_g2*(1-T_cell/T_Sun)-k*T_cell/q*log(Angle_emit_Vopt/Angle_abs);
 factor_Vopt1 = (E_g1-V_opt1)./(E_g1-V_opt1_ideal);
 factor_Vopt2 = (E_g2-V_opt2)./(E_g2-V_opt2_ideal);
 
@@ -132,8 +132,8 @@ P_below_f = A_mod*Irr_spec;
 P_below = trapz(wav(N_2:end),P_below_f(:,N_2:end)')';
 
 %% Carnot losses
-V_carnot1 = E_g1*T_cell/T_S.*factor_Vopt1;
-V_carnot2 = E_g2*T_cell/T_S.*factor_Vopt2;
+V_carnot1 = E_g1*T_cell/T_Sun.*factor_Vopt1;
+V_carnot2 = E_g2*T_cell/T_Sun.*factor_Vopt2;
 P_carnot = V_carnot1.*I_max1 + V_carnot2.*I_max2;
 
 %% Angle mismatch losses
