@@ -32,7 +32,8 @@ The PVMD Toolbox has been used in the following studies:
 9. Y. Blom, et al., Combining physical- and scenario-based modeling to identify tolerable degradation rates of perovskite in monolithic two-terminal perovskite/silicon tandem modules, _Solar Energy Materials and Solar Cells_ **299**, 114169 (2026): https://doi.org/10.1016/j.solmat.2026.114169
 
 # Related repositories
-The development of the PVMD Toolbox has also led to the production of other interactive tools related to photovoltaic energy. If you are interested, have a look at the repositories below:
+The development of the PVMD Toolbox has also led to the production of other repositories related to photovoltaic energy. If you are interested, have a look at the repositories below:
+- [Interpolation of the complex refractive index for perovskite](https://github.com/YBlom1999/InterpolationNK_YB)
 - [Visualize partial shading in PV modules](https://github.com/YBlom1999/PartialShading)
 
 # Contact
