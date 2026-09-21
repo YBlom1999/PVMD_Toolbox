@@ -9,6 +9,19 @@ The software can be used either via MATLAB or via the Graphical User Interface (
 For the usage of the GUI, [this manual](Manuals/UsersManual_PVMD_Toolbox.pdf) the manual can be used for the needed instructions and information.
 Furthermore, a detailed explanation of the methodology can be found with in [this document](Manuals/Methodology_guide_PVMD_Toolbox.pdf).
 
+# Video tutorials
+Different video tutorials have been created that explain how the interactive GUI can be used and what the different steps do.
+For each simulation step, the link to the tutorial can be found below.
+
+1. [Cell](https://youtu.be/nNNcx8Udiuo)
+2. [Module](https://youtu.be/OMSKibqq3y8)
+3. [Weather](https://youtu.be/YCrnFNWANi8)
+4. [Thermal](https://youtu.be/A0-ShzHRtiU)
+5. [Electrical](https://youtu.be/xnDaItdLGwc)
+6. Degradation (still to be made)
+7. [Conversion](https://youtu.be/G3qLR-Nb9nc)
+8. [Loss Analysis](https://youtu.be/1dgAfrRb-9U)
+
 # Citing
 If you use (a part of) this software for your own study, please refer to the following publication: 
 
