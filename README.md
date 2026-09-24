@@ -50,4 +50,4 @@ The development of the PVMD Toolbox has also led to the production of other repo
 - [Visualize partial shading in PV modules](https://github.com/YBlom1999/PartialShading)
 
 # Contact
-If there are any questions/problems or you want to contact us, please reach out to y.blom@tudelft.nl or r.santbergen@tudelft.nl
+If there are any questions/problems or you want to contact us, please reach out to i.z.durrani@tudelft.nl or r.santbergen@tudelft.nl
